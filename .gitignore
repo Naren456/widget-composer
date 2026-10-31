@@ -41,3 +41,9 @@ example
 # generated native folders
 /ios
 /android
+
+# Server-only secrets for the widget agent (src/server/agent.ts)
+.env
+
+# Server-side data store: encrypted credentials (src/server/data-sources/credentials.ts)
+/.data
