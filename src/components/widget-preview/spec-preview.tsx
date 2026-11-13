@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Image } from "expo-image";
 import { Platform, StyleSheet, Text, useColorScheme, View } from "react-native";
 
-import { type WidgetDataMap, type WidgetNode, type WidgetSpec } from "@/services/widget-api";
+import { type WidgetDataMap, type WidgetNode, type WidgetPalette, type WidgetSpec } from "@/services/widget-api";
 
 type Props = {
   spec: WidgetSpec;
@@ -10,7 +10,7 @@ type Props = {
   sample?: boolean;
 };
 
-type Palette = { background: string; text: string; muted: string; accent: string; border: string };
+type Palette = WidgetPalette;
 type WidgetFont = NonNullable<WidgetSpec["presentation"]["fontFamily"]>;
 
 function fontStyle(font: WidgetFont | undefined) {
@@ -19,11 +19,14 @@ function fontStyle(font: WidgetFont | undefined) {
   return undefined;
 }
 
-function paletteFor(theme: WidgetSpec["presentation"]["theme"], system: "light" | "dark" | null): Palette {
+function paletteFor(theme: WidgetSpec["presentation"]["theme"], system: "light" | "dark" | null, custom?: WidgetPalette): Palette {
   const dark = theme === "dark" || (theme === "system" && system !== "light");
-  return dark
-    ? { background: "#111713", text: "#F2F5F2", muted: "#A5B0A8", accent: "#A6EF5C", border: "#303A33" }
-    : { background: "#F4F7F3", text: "#172019", muted: "#5E6B61", accent: "#367D21", border: "#DCE5DC" };
+  return {
+    ...(dark
+      ? { background: "#17191D", surface: "#23262C", text: "#F3F0EB", muted: "#B2B0AA", accent: "#E6A86A", border: "#383C43" }
+      : { background: "#F7F4EF", surface: "#FFFFFF", text: "#242321", muted: "#6D6963", accent: "#9B4F31", border: "#E6E0D8" }),
+    ...custom,
+  };
 }
 
 function resolve(binding: string, data: WidgetDataMap | null): string | null {
@@ -67,7 +70,10 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
     case "column":
     case "row":
       return (
-        <View style={{ flexDirection: node.type, alignItems: node.type === "row" ? "center" : undefined, gap: node.gap ?? 6 }}>
+        <View style={[
+          { flexDirection: node.type, alignItems: node.type === "row" ? "center" : undefined, gap: node.gap ?? 6 },
+          node.surface && { backgroundColor: palette.surface, borderRadius: node.radiusDp ?? 12, padding: node.paddingDp ?? 8 },
+        ]}>
           {node.children.map((child, index) => (
             <NodePreview key={`${child.type}-${index}`} node={child} data={data} palette={palette} family={family} />
           ))}
@@ -79,7 +85,9 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
           style={[
             styles.text,
             fontStyle(family),
-            { color: node.style === "caption" ? palette.muted : palette.text },
+            { color: node.colorToken ? palette[node.colorToken] : node.style === "caption" ? palette.muted : palette.text },
+            node.fontSizeDp !== undefined && { fontSize: node.fontSizeDp, lineHeight: Math.round(node.fontSizeDp * 1.35) },
+            node.weight && { fontWeight: node.weight === "bold" ? "700" : node.weight === "medium" ? "600" : "400" },
             node.style === "title" && styles.title,
             node.style === "caption" && styles.caption,
           ]}
@@ -89,7 +97,7 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
       );
     case "image": {
       const match = /^([a-z][a-z0-9_]{0,23})\.items\[(\d{1,2})\]\.imageUrl$/.exec(node.source);
-      const item = match ? data?.[match[1]]?.items[Number(match[2])] : undefined;
+      const item = match ? data?.[match[1]]?.items[Number(match[2])] : data?.[node.source]?.items[0];
       if (!item?.imageData) {
         return <Text style={[styles.caption, { color: palette.muted }]}>{node.alt ?? "Image unavailable"}</Text>;
       }
@@ -97,8 +105,8 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
       return (
         <Image
           source={{ uri: `data:${mimeType};base64,${item.imageData}` }}
-          style={styles.image}
-          contentFit="cover"
+          style={{ width: node.widthDp ?? 48, height: node.heightDp ?? 48, borderRadius: node.radiusDp ?? 8 }}
+          contentFit={node.fit ?? "cover"}
           accessibilityLabel={node.alt ?? item.title ?? "Widget image"}
         />
       );
@@ -112,6 +120,18 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
           <Text style={[styles.caption, fontStyle(family), { color: palette.muted }]}>{node.label}</Text>
         </View>
       );
+    case "progress": {
+      const value = Number(resolve(node.valueBinding, data) ?? 0);
+      const ratio = Math.max(0, Math.min(1, value / node.maxValue));
+      return (
+        <View style={[styles.progress, { width: node.widthDp ?? 128 }]}>
+          {node.label && <Text style={[styles.caption, fontStyle(family), { color: palette.muted }]} numberOfLines={1}>{node.label}</Text>}
+          <View style={[styles.progressTrack, { height: node.heightDp ?? 7, backgroundColor: palette.border, borderRadius: (node.heightDp ?? 7) / 2 }]}>
+            <View style={{ width: `${ratio * 100}%`, height: "100%", backgroundColor: palette.accent, borderRadius: (node.heightDp ?? 7) / 2 }} />
+          </View>
+        </View>
+      );
+    }
     case "list": {
       const items = data?.[node.source]?.items.slice(0, node.maxItems) ?? [];
       return items.length ? (
@@ -131,6 +151,30 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
         <Text style={[styles.caption, fontStyle(family), { color: palette.muted }]}>{data ? "Nothing here yet" : "Data will appear here"}</Text>
       );
     }
+    case "streak_chart": {
+      const summary = data?.[node.source]?.contributions;
+      const days = summary?.days.slice(-28) ?? [];
+      const levels = [palette.border, "#0E4429", "#006D32", "#26A641", "#39D353"];
+      return (
+        <View style={styles.streakChart}>
+          <View style={styles.streakStats}>
+            <Text style={[styles.streakValue, fontStyle(family), { color: palette.accent }]}>{summary ? `${summary.currentStreak} day${summary.currentStreak === 1 ? "" : "s"}` : "–"}</Text>
+            <Text style={[styles.caption, fontStyle(family), { color: palette.muted }]}>current streak · best {summary?.longestStreak ?? "–"}</Text>
+          </View>
+          <View style={styles.streakGrid} accessibilityLabel="Last 28 days of GitHub contributions">
+            {Array.from({ length: 4 }, (_, row) => (
+              <View key={row} style={styles.streakRow}>
+                {Array.from({ length: 7 }, (_, column) => {
+                  const day = days[row * 7 + column];
+                  return <View key={column} style={[styles.streakCell, { backgroundColor: levels[Math.max(0, Math.min(4, day?.level ?? 0))] }]} />;
+                })}
+              </View>
+            ))}
+          </View>
+          <Text style={[styles.caption, fontStyle(family), { color: palette.muted }]}>{summary ? `Past year · ${summary.total} contributions` : "Contribution data will appear here"}</Text>
+        </View>
+      );
+    }
     case "divider":
       return <View style={[styles.divider, { backgroundColor: palette.border }]} />;
     case "spacer":
@@ -144,7 +188,7 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
 
 /** In-app preview of the same versioned WidgetSpec consumed by the Android Glance renderer. */
 export function SpecPreview({ spec, data, sample = false }: Props) {
-  const palette = paletteFor(spec.presentation.theme, useColorScheme());
+  const palette = paletteFor(spec.presentation.theme, useColorScheme(), spec.presentation.palette);
   const family = spec.presentation.fontFamily ?? "sans";
   const hasGithubSource = spec.dataSources.some((source) => source.connector === "github");
   return (
@@ -178,8 +222,16 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 26, lineHeight: 31, fontWeight: "700", fontVariant: ["tabular-nums"] },
   list: { gap: 4 },
   listItem: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6, gap: 2 },
+  streakChart: { gap: 7 },
+  streakStats: { gap: 1 },
+  streakValue: { fontSize: 22, lineHeight: 27, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  streakGrid: { gap: 3, alignSelf: "flex-start" },
+  streakRow: { flexDirection: "row", gap: 3 },
+  streakCell: { width: 10, height: 10, borderRadius: 3 },
   itemTitle: { fontWeight: "600" },
   image: { width: 48, height: 48, borderRadius: 8 },
+  progress: { gap: 4 },
+  progressTrack: { width: "100%", overflow: "hidden" },
   divider: { height: StyleSheet.hairlineWidth, width: "100%" },
   buttonLabel: { fontSize: 13, fontWeight: "700" },
   linkLabel: { fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },

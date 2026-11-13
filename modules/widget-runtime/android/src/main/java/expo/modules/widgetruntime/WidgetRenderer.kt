@@ -4,11 +4,13 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.util.Base64
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONArray
@@ -35,12 +37,13 @@ internal class WidgetRenderer(
   private val palette = paletteFor(
     presentation?.optString("theme") ?: "dark",
     presentation?.optString("fontFamily") ?: "sans",
+    presentation?.optJSONObject("palette"),
   )
   private var nextRequestCode = 0
 
   fun render(): RemoteViews {
     val root = RemoteViews(pkg, R.layout.widget_runtime_root)
-    root.setInt(R.id.wr_root, "setBackgroundResource", palette.background)
+    root.setInt(R.id.wr_root, "setBackgroundColor", palette.background)
     root.setViewVisibility(R.id.wr_empty, View.GONE)
     root.removeAllViews(R.id.wr_content)
     root.addView(R.id.wr_content, RemoteViews(pkg, R.layout.wr_text_caption).apply {
@@ -60,12 +63,18 @@ internal class WidgetRenderer(
   private fun node(node: JSONObject, inRow: Boolean): RemoteViews =
     when (node.optString("type")) {
       "column", "row" -> container(node)
-      "text" -> text(template(node.optString("text")), node.optString("style", "body"))
+      "text" -> text(template(node.optString("text")), node.optString("style", "body")).apply {
+        val defaultSize = when (node.optString("style", "body")) { "title" -> 17; "caption" -> 10; else -> 14 }
+        setTextViewTextSize(R.id.wr_text, TypedValue.COMPLEX_UNIT_SP, node.optInt("fontSizeDp", defaultSize).coerceIn(10, 32).toFloat())
+        setTextColor(R.id.wr_text, when (node.optString("colorToken")) { "accent" -> palette.accent; "muted" -> palette.muted; else -> palette.text })
+      }
       "image" -> image(node)
       "link" -> link(node)
       "clock" -> clock(node)
       "metric" -> metric(node)
+      "progress" -> progress(node)
       "list" -> list(node)
+      "streak_chart" -> streakChart(node)
       "divider" -> RemoteViews(pkg, R.layout.wr_divider).apply { setInt(R.id.wr_divider, "setBackgroundColor", palette.divider) }
       "spacer" -> spacer(node.optInt("sizeDp", 8), inRow)
       "button" -> button(node)
@@ -77,6 +86,11 @@ internal class WidgetRenderer(
     val isRow = node.optString("type") == "row"
     val views = RemoteViews(pkg, if (isRow) R.layout.wr_row else R.layout.wr_column)
     val gap = node.optInt("gap", 0)
+    if (node.optBoolean("surface", false)) {
+      views.setInt(R.id.wr_container, "setBackgroundColor", palette.surface)
+      val padding = (node.optInt("paddingDp", 8).coerceIn(0, 24) * context.resources.displayMetrics.density).toInt()
+      views.setViewPadding(R.id.wr_container, padding, padding, padding, padding)
+    }
     val children = node.optJSONArray("children") ?: JSONArray()
     for (i in 0 until children.length()) {
       if (i > 0 && gap > 0) views.addView(R.id.wr_container, spacer(gap, isRow))
@@ -105,19 +119,25 @@ internal class WidgetRenderer(
   }
 
   private fun image(node: JSONObject): RemoteViews {
-    val match = BINDING.matchEntire(node.optString("source"))
-      ?: return text(node.optString("alt", "Image unavailable"), "caption")
-    if (match.groupValues[2].isEmpty() || match.groupValues[3] != "imageUrl") {
-      return text(node.optString("alt", "Image unavailable"), "caption")
+    val source = node.optString("source")
+    val item = if (ASSET_BINDING.matches(source)) {
+      data?.optJSONObject(source)?.optJSONArray("items")?.optJSONObject(0)
+    } else {
+      val match = BINDING.matchEntire(source) ?: return text(node.optString("alt", "Image unavailable"), "caption")
+      if (match.groupValues[2].isEmpty() || match.groupValues[3] != "imageUrl") return text(node.optString("alt", "Image unavailable"), "caption")
+      data?.optJSONObject(match.groupValues[1])?.optJSONArray("items")?.optJSONObject(match.groupValues[2].toInt())
     }
-    val item = data?.optJSONObject(match.groupValues[1])?.optJSONArray("items")?.optJSONObject(match.groupValues[2].toInt())
-      ?: return text(node.optString("alt", "Image unavailable"), "caption")
+    item ?: return text(node.optString("alt", "Image unavailable"), "caption")
     val encoded = item.optString("imageData").takeIf { it.isNotBlank() }
       ?: return text(node.optString("alt", "Image unavailable"), "caption")
     val bitmap = decodeImage(encoded) ?: return text(node.optString("alt", "Image unavailable"), "caption")
-    return RemoteViews(pkg, R.layout.wr_image).apply {
+    return RemoteViews(pkg, if (node.optString("fit") == "contain") R.layout.wr_image_contain else R.layout.wr_image).apply {
       setImageViewBitmap(R.id.wr_image, bitmap)
       setContentDescription(R.id.wr_image, node.optString("alt", item.optString("title", "Widget image")))
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        setViewLayoutWidth(R.id.wr_image, node.optInt("widthDp", 48).coerceIn(24, 240).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+        setViewLayoutHeight(R.id.wr_image, node.optInt("heightDp", 48).coerceIn(24, 240).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+      }
     }
   }
 
@@ -188,6 +208,37 @@ internal class WidgetRenderer(
       safeUrl(item.optString("url"))?.let { row.setOnClickPendingIntent(R.id.wr_item, openUrl(it)) }
       views.addView(R.id.wr_container, row)
     }
+    return views
+  }
+
+  private fun streakChart(node: JSONObject): RemoteViews {
+    val source = data?.optJSONObject(node.optString("source"))
+    val summary = source?.optJSONObject("contributions")
+    val days = summary?.optJSONArray("days") ?: JSONArray()
+    val views = RemoteViews(pkg, R.layout.wr_column)
+    val current = summary?.optInt("currentStreak")
+    val best = summary?.optInt("longestStreak")
+    val total = summary?.optInt("total")
+    views.addView(R.id.wr_container, text(if (current == null) "–" else "$current day${if (current == 1) "" else "s"}", "title"))
+    views.addView(R.id.wr_container, text(if (best == null) "Current streak · best –" else "Current streak · best $best", "caption"))
+    for (rowIndex in 0 until 4) {
+      val row = RemoteViews(pkg, R.layout.wr_row)
+      for (column in 0 until 7) {
+        val level = days.optJSONObject(rowIndex * 7 + column)?.optInt("level", 0)?.coerceIn(0, 4) ?: 0
+        val color = when (level) {
+          1 -> Color.parseColor("#0E4429")
+          2 -> Color.parseColor("#006D32")
+          3 -> Color.parseColor("#26A641")
+          4 -> Color.parseColor("#39D353")
+          else -> palette.divider
+        }
+        row.addView(R.id.wr_container, RemoteViews(pkg, R.layout.wr_streak_cell).apply {
+          setInt(R.id.wr_streak_cell, "setBackgroundColor", color)
+        })
+      }
+      views.addView(R.id.wr_container, row)
+    }
+    views.addView(R.id.wr_container, text(if (total == null) "Contribution data unavailable" else "Past year · $total contributions", "caption"))
     return views
   }
 

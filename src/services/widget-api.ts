@@ -123,14 +123,18 @@ export type WidgetAction =
   | { type: "open_app"; screen: "widget_details" }
   | { type: "refresh" };
 
+export type WidgetPalette = { background: string; surface: string; text: string; muted: string; accent: string; border: string };
+
 export type WidgetNode =
-  | { type: "column" | "row"; gap?: number; children: WidgetNode[] }
-  | { type: "text"; text: string; style?: "title" | "body" | "caption" }
-  | { type: "image"; source: string; alt?: string }
+  | { type: "column" | "row"; gap?: number; surface?: boolean; radiusDp?: number; paddingDp?: number; children: WidgetNode[] }
+  | { type: "text"; text: string; style?: "title" | "body" | "caption"; fontSizeDp?: number; weight?: "normal" | "medium" | "bold"; colorToken?: "text" | "muted" | "accent" }
+  | { type: "image"; source: string; alt?: string; widthDp?: number; heightDp?: number; fit?: "cover" | "contain"; radiusDp?: number }
   | { type: "link"; label: string; urlBinding: string }
   | { type: "clock"; format: "12_hour" | "24_hour"; showDate?: boolean; showSeconds?: boolean }
   | { type: "metric"; label: string; valueBinding: string }
+  | { type: "progress"; label?: string; valueBinding: string; maxValue: number; widthDp?: number; heightDp?: number }
   | { type: "list"; source: string; maxItems: number }
+  | { type: "streak_chart"; source: string }
   | { type: "divider" }
   | { type: "spacer"; sizeDp: number }
   | { type: "button"; label: string; action: WidgetAction };
@@ -147,12 +151,35 @@ export type WidgetDataItem = {
   imageMimeType?: string;
 };
 
+export type GitHubContributionDay = { date: string; count: number; level: number };
+export type GitHubContributionSummary = { total: number; currentStreak: number; longestStreak: number; days: GitHubContributionDay[] };
+export type WidgetDataSource = {
+  count: number;
+  items: WidgetDataItem[];
+  contributions?: GitHubContributionSummary;
+  metadata?: {
+    title: string;
+    description: string;
+    canonicalUrl: string;
+    logoUrl: string;
+    headings: string[];
+    paragraphs: string[];
+    pageText: string;
+    truncated?: boolean;
+    links: { title: string; url: string; imageUrl?: string }[];
+    images: { url: string; alt: string; title: string }[];
+    structuredData: { type: string; name: string; headline: string; description: string; url: string; author: string; datePublished: string; keywords: string; imageUrl: string }[];
+  };
+};
+export type WidgetDataMap = Record<string, WidgetDataSource>;
+
 export type WidgetSpec = {
-  schemaVersion: 1 | 2 | 3 | 4;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6;
   name: string;
   presentation: {
     theme: "light" | "dark" | "system";
     fontFamily?: "sans" | "serif" | "monospace";
+    palette?: WidgetPalette;
     refreshMinutes: number;
     minWidthDp?: number;
     minHeightDp?: number;
@@ -212,25 +239,6 @@ export function connectGitHub(): Promise<ApiResult<{ authorizeUrl: string }>> {
 export function disconnectConnector(connectorId: string): Promise<ApiResult<void>> {
   return call(`/v1/connectors/${encodeURIComponent(connectorId)}`, { method: "DELETE" });
 }
-
-/** Normalized connector data, keyed by data source id. */
-export type WidgetDataMap = Record<string, {
-  count: number;
-  items: WidgetDataItem[];
-  metadata?: {
-    title: string;
-    description: string;
-    canonicalUrl: string;
-    logoUrl: string;
-    headings: string[];
-    paragraphs: string[];
-    pageText: string;
-    truncated?: boolean;
-    links: { title: string; url: string; imageUrl?: string }[];
-    images: { url: string; alt: string; title: string }[];
-    structuredData: { type: string; name: string; headline: string; description: string; url: string; author: string; datePublished: string; keywords: string; imageUrl: string }[];
-  };
-}>;
 
 /** Saves a generated spec as a new widget (version 1). */
 export function saveWidget(spec: WidgetSpec, generationRunId?: string): Promise<ApiResult<SavedWidget>> {

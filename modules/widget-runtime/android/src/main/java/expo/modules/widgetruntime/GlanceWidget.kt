@@ -33,7 +33,6 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.ContentScale
-import androidx.glance.layout.defaultWeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -68,6 +67,7 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
       context,
       presentation?.optString("theme") ?: "dark",
       presentation?.optString("fontFamily") ?: "sans",
+      presentation?.optJSONObject("palette"),
     )
     val images = if (spec != null) decodeImages(spec.optJSONObject("root"), data) else emptyMap()
     val homeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("web2widgets://home?widget=${Uri.encode(widgetId.orEmpty())}"))
@@ -97,7 +97,7 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.width(3.dp).height(16.dp).background(palette.accent).cornerRadius(2.dp),
               ) {}
               Spacer(GlanceModifier.width(8.dp))
-              Text(spec.optString("name", "Widget"), modifier = GlanceModifier.defaultWeight(), style = textStyle(palette.text, 13, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+              Text(spec.optString("name", "Widget"), style = textStyle(palette.text, 13, FontWeight.Bold, palette.fontFamily), maxLines = 1)
               Spacer(GlanceModifier.width(10.dp))
               Text(
                 "Refresh",
@@ -144,11 +144,14 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
     val bindings = linkedSetOf<String>()
     collectImageBindings(root, bindings)
     return bindings.mapNotNull { binding ->
-      val match = IMAGE_BINDING.matchEntire(binding) ?: return@mapNotNull null
-      val index = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
-      val encoded = data?.optJSONObject(match.groupValues[1])?.optJSONArray("items")
-        ?.optJSONObject(index)?.optString("imageData")?.takeIf(String::isNotBlank)
-        ?: return@mapNotNull null
+      val asset = ASSET_BINDING.matches(binding)
+      val encoded = if (asset) {
+        data?.optJSONObject(binding)?.optJSONArray("items")?.optJSONObject(0)?.optString("imageData")
+      } else {
+        val match = IMAGE_BINDING.matchEntire(binding) ?: return@mapNotNull null
+        val index = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+        data?.optJSONObject(match.groupValues[1])?.optJSONArray("items")?.optJSONObject(index)?.optString("imageData")
+      }?.takeIf(String::isNotBlank) ?: return@mapNotNull null
       decodeImage(encoded)?.let { bitmap -> binding to bitmap }
     }.toMap()
   }
@@ -156,7 +159,7 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
   private fun collectImageBindings(node: JSONObject?, found: MutableSet<String>) {
     if (node == null) return
     when (node.optString("type")) {
-      "image" -> node.optString("source").takeIf { IMAGE_BINDING.matches(it) }?.let(found::add)
+      "image" -> node.optString("source").takeIf { IMAGE_BINDING.matches(it) || ASSET_BINDING.matches(it) }?.let(found::add)
       "column", "row" -> node.optJSONArray("children")?.let { children ->
         for (index in 0 until children.length()) collectImageBindings(children.optJSONObject(index), found)
       }
@@ -181,11 +184,13 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
 
   private companion object {
     val IMAGE_BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.items\[(\d{1,2})\]\.imageUrl$""")
+    val ASSET_BINDING = Regex("""^asset_[0-9a-f-]{36}$""", RegexOption.IGNORE_CASE)
   }
 }
 
 private data class WidgetPalette(
   val background: Color,
+  val surface: Color,
   val text: Color,
   val muted: Color,
   val accent: Color,
@@ -194,7 +199,7 @@ private data class WidgetPalette(
   val fontKey: String,
 ) {
   companion object {
-    fun from(context: Context, theme: String, fontKey: String): WidgetPalette {
+    fun from(context: Context, theme: String, fontKey: String, custom: JSONObject?): WidgetPalette {
       val isNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
       val dark = theme == "dark" || (theme == "system" && isNight)
       val font = when (fontKey) {
@@ -203,11 +208,15 @@ private data class WidgetPalette(
         else -> FontFamily.SansSerif
       }
       fun parse(value: String) = Color(android.graphics.Color.parseColor(value))
-      return if (dark) {
-        WidgetPalette(parse("#111713"), parse("#F2F5F2"), parse("#A5B0A8"), parse("#A6EF5C"), parse("#303A33"), font, fontKey)
+      val fallback = if (dark) {
+        listOf("#17191D", "#23262C", "#F3F0EB", "#B2B0AA", "#E6A86A", "#383C43")
       } else {
-        WidgetPalette(parse("#F4F7F3"), parse("#172019"), parse("#5E6B61"), parse("#367D21"), parse("#DCE5DC"), font, fontKey)
+        listOf("#F7F4EF", "#FFFFFF", "#242321", "#6D6963", "#9B4F31", "#E6E0D8")
       }
+      val values = listOf("background", "surface", "text", "muted", "accent", "border").mapIndexed { index, key ->
+        custom?.optString(key)?.takeIf { it.matches(Regex("^#[0-9a-fA-F]{6}$")) } ?: fallback[index]
+      }.map(::parse)
+      return WidgetPalette(values[0], values[1], values[2], values[3], values[4], values[5], font, fontKey)
     }
   }
 }
@@ -226,7 +235,12 @@ private fun WidgetNodeView(
   when (node.optString("type")) {
     "column" -> {
       val children = node.optJSONArray("children") ?: JSONArray()
-      Column(modifier = GlanceModifier.fillMaxWidth()) {
+      var modifier = GlanceModifier.fillMaxWidth()
+      if (node.optBoolean("surface", false)) {
+        modifier = modifier.background(palette.surface).cornerRadius(node.optInt("radiusDp", 12).coerceIn(0, 24).dp)
+          .padding(node.optInt("paddingDp", 8).coerceIn(0, 24).dp)
+      }
+      Column(modifier = modifier) {
         for (index in 0 until minOf(children.length(), 10)) {
           if (index > 0) Spacer(GlanceModifier.height(node.optInt("gap", 0).coerceIn(0, 64).dp))
           children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, refreshIntent) }
@@ -235,7 +249,12 @@ private fun WidgetNodeView(
     }
     "row" -> {
       val children = node.optJSONArray("children") ?: JSONArray()
-      Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      var modifier = GlanceModifier.fillMaxWidth()
+      if (node.optBoolean("surface", false)) {
+        modifier = modifier.background(palette.surface).cornerRadius(node.optInt("radiusDp", 12).coerceIn(0, 24).dp)
+          .padding(node.optInt("paddingDp", 8).coerceIn(0, 24).dp)
+      }
+      Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         for (index in 0 until minOf(children.length(), 10)) {
           if (index > 0) Spacer(GlanceModifier.width(node.optInt("gap", 0).coerceIn(0, 64).dp))
           children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, refreshIntent) }
@@ -244,14 +263,21 @@ private fun WidgetNodeView(
     }
     "text" -> {
       val style = node.optString("style", "body")
-      val color = if (style == "caption") palette.muted else palette.text
-      Text(template(node.optString("text"), data), style = textStyle(color, if (style == "title") 17 else if (style == "caption") 10 else 14, if (style == "title") FontWeight.Bold else FontWeight.Normal, palette.fontFamily), maxLines = 3)
+      val color = when (node.optString("colorToken")) { "muted" -> palette.muted; "accent" -> palette.accent; else -> if (style == "caption") palette.muted else palette.text }
+      val weight = when (node.optString("weight")) { "bold" -> FontWeight.Bold; "medium" -> FontWeight.Medium; "normal" -> FontWeight.Normal; else -> if (style == "title") FontWeight.Bold else FontWeight.Normal }
+      Text(template(node.optString("text"), data), style = textStyle(color, node.optInt("fontSizeDp", if (style == "title") 17 else if (style == "caption") 10 else 14).coerceIn(10, 32), weight, palette.fontFamily), maxLines = 3)
     }
     "image" -> {
       val source = node.optString("source")
       val bitmap = images[source]
       if (bitmap != null) {
-        Image(ImageProvider(bitmap), node.optString("alt", "Widget image"), GlanceModifier.size(48.dp), ContentScale.Crop)
+        val fit = if (node.optString("fit") == "contain") ContentScale.Fit else ContentScale.Crop
+        Image(
+          ImageProvider(bitmap), node.optString("alt", "Widget image"),
+          GlanceModifier.size(node.optInt("widthDp", 48).coerceIn(24, 240).dp, node.optInt("heightDp", 48).coerceIn(24, 240).dp)
+            .cornerRadius(node.optInt("radiusDp", 8).coerceIn(0, 24).dp),
+          fit,
+        )
       } else {
         Text(node.optString("alt", "Image unavailable"), style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
       }
@@ -288,6 +314,19 @@ private fun WidgetNodeView(
         Text(node.optString("label"), style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
       }
     }
+    "progress" -> {
+      val value = (resolve(data, node.optString("valueBinding"))?.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+      val max = node.optInt("maxValue", 100).coerceAtLeast(1)
+      val width = node.optInt("widthDp", 128).coerceIn(50, 240)
+      val height = node.optInt("heightDp", 7).coerceIn(3, 16)
+      Column {
+        if (node.optString("label").isNotBlank()) Text(node.optString("label"), style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+        Box(modifier = GlanceModifier.width(width.dp).height(height.dp).background(palette.border).cornerRadius((height / 2).coerceAtLeast(1).dp)) {
+          val fill = (width * (value / max).coerceIn(0.0, 1.0)).toInt().coerceAtLeast(if (value > 0) 1 else 0)
+          if (fill > 0) Box(modifier = GlanceModifier.width(fill.dp).height(height.dp).background(palette.accent).cornerRadius((height / 2).coerceAtLeast(1).dp)) {}
+        }
+      }
+    }
     "list" -> {
       val items = data?.optJSONObject(node.optString("source"))?.optJSONArray("items") ?: JSONArray()
       val count = minOf(items.length(), node.optInt("maxItems", 3).coerceIn(1, 5), 5)
@@ -311,6 +350,7 @@ private fun WidgetNodeView(
         }
       }
     }
+    "streak_chart" -> StreakChart(node, data, palette)
     "divider" -> Box(GlanceModifier.fillMaxWidth().height(1.dp).background(palette.divider)) {}
     "spacer" -> Spacer(GlanceModifier.height(node.optInt("sizeDp", 8).coerceIn(1, 64).dp))
     "button" -> {
@@ -334,6 +374,55 @@ private fun WidgetNodeView(
         Text(label, style = textStyle(palette.background, 11, FontWeight.Bold, palette.fontFamily), maxLines = 1)
       }
     }
+  }
+}
+
+@Composable
+private fun StreakChart(node: JSONObject, data: JSONObject?, palette: WidgetPalette) {
+  val summary = data?.optJSONObject(node.optString("source"))?.optJSONObject("contributions")
+  val days = summary?.optJSONArray("days") ?: JSONArray()
+  val current = summary?.optInt("currentStreak", 0)
+  val best = summary?.optInt("longestStreak", 0)
+  val total = summary?.optInt("total", 0)
+  val levels = listOf(
+    palette.divider,
+    Color(android.graphics.Color.parseColor("#0E4429")),
+    Color(android.graphics.Color.parseColor("#006D32")),
+    Color(android.graphics.Color.parseColor("#26A641")),
+    Color(android.graphics.Color.parseColor("#39D353")),
+  )
+  Column(modifier = GlanceModifier.fillMaxWidth()) {
+    Text(
+      if (current == null) "–" else "$current day${if (current == 1) "" else "s"}",
+      style = textStyle(palette.accent, 22, FontWeight.Bold, palette.fontFamily),
+      maxLines = 1,
+    )
+    Text(
+      if (best == null) "Current streak · best –" else "Current streak · best $best",
+      style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily),
+      maxLines = 1,
+    )
+    Spacer(GlanceModifier.height(7.dp))
+    for (row in 0 until 4) {
+      Row {
+        for (column in 0 until 7) {
+          val index = row * 7 + column
+          val level = days.optJSONObject(index)?.optInt("level", 0)?.coerceIn(0, 4) ?: 0
+          Box(
+            modifier = GlanceModifier
+              .padding(end = 3.dp, bottom = 3.dp)
+              .size(9.dp)
+              .background(levels[level])
+              .cornerRadius(2.dp),
+          ) {}
+        }
+      }
+    }
+    Text(
+      if (total == null) "Contribution data will appear here" else "Past year · $total contributions",
+      style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily),
+      maxLines = 1,
+    )
   }
 }
 

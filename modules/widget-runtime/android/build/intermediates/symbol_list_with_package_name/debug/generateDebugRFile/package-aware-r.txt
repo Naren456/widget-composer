@@ -16,6 +16,7 @@ id wr_item_title
 id wr_metric_label
 id wr_metric_value
 id wr_root
+id wr_streak_cell
 id wr_text
 layout widget_runtime_root
 layout wr_button
@@ -32,6 +33,7 @@ layout wr_spacer_16
 layout wr_spacer_32
 layout wr_spacer_4
 layout wr_spacer_8
+layout wr_streak_cell
 layout wr_text_body
 layout wr_text_caption
 layout wr_text_title

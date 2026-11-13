@@ -1,7 +1,7 @@
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
 import { Image } from "expo-image";
-import * as ImageManipulator from "expo-image-manipulator";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -57,7 +57,7 @@ export function Composer({ value, onChangeText, attachedUrl, onAttachUrl, attach
       if (scale < 1) editor.resize({ width: Math.round(asset.width * scale), height: Math.round(asset.height * scale) });
       const rendered = await editor.renderAsync();
       const processed = await rendered.saveAsync({
-        format: ImageManipulator.SaveFormat.JPEG,
+        format: SaveFormat.JPEG,
         compress: 0.78,
         base64: true,
       });
