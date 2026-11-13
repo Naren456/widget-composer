@@ -1,8 +1,9 @@
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { type ComponentRef, useEffect, useRef, useState } from "react";
 import {
+  AppState,
   BackHandler,
   KeyboardAvoidingView,
   Pressable,
@@ -12,57 +13,90 @@ import {
   View,
 } from "react-native";
 
-import { Composer } from "@/components/chat/composer";
-import { AssistantMessage, PendingMessage, UserMessage } from "@/components/chat/messages";
+import { Composer, type ReferenceImage } from "@/components/chat/composer";
+import { AssistantMessage, GeneratedWidgetMessage, PendingMessage, UserMessage } from "@/components/chat/messages";
 import { Sidebar } from "@/components/chat/sidebar";
 import { Screen } from "@/components/ui/screen";
-import { type AssistantDone, type ChatMessage, messageId, parseRequest } from "@/features/chat/compose";
-import { useWidgetStore } from "@/features/widgets/widget-store";
-import { composeWithAgent } from "@/services/agent";
+import { type ChatMessage, messageId, parseRequest } from "@/features/chat/compose";
+import { addToHomeScreen, refreshPlacedWidgets, syncPlacedWidget } from "@/features/home-screen/home-screen-widgets";
+import { generateWidget, previewData, saveWidget, saveWidgetVersion, validateWidgetDesign, type WidgetSpec } from "@/services/widget-api";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-import { nameFromUrl, type SavedWidget } from "@/types/widget";
 
 /** Starter prompts in the ChatGPT pattern. Tapping one fills the composer, it never sends. */
 const suggestions = [
   {
-    title: "Latest headlines",
-    body: "from techcrunch.com",
-    prompt: "Show the latest headlines from techcrunch.com in a compact list",
+    title: "Assigned issues",
+    body: "your GitHub issues",
+    prompt: "Show my assigned GitHub issues in a compact list",
   },
   {
-    title: "Top stories",
-    body: "on Hacker News",
-    prompt: "Top 5 stories from news.ycombinator.com",
+    title: "Open pull requests",
+    body: "across your repositories",
+    prompt: "Show my open GitHub pull requests in a compact list",
   },
   {
-    title: "New videos",
-    body: "from a YouTube channel",
-    prompt: "Latest videos with thumbnails from youtube.com/@mkbhd",
+    title: "Review requests",
+    body: "waiting for you",
+    prompt: "Show GitHub pull requests waiting for my review",
   },
   {
-    title: "Product updates",
-    body: "from a company blog",
-    prompt: "Newest product announcements from blog.google",
+    title: "Issue count",
+    body: "assigned to you",
+    prompt: "Show a count of my assigned GitHub issues with a short list of the latest ones",
+  },
+  {
+    title: "Local clock",
+    body: "time and date",
+    prompt: "Create a clean 24-hour clock widget with the current local time and date",
+  },
+  {
+    title: "Website widget",
+    body: "page title and headings",
+    prompt: "Turn https://news.ycombinator.com into a compact widget showing the page title and top headings",
+  },
+  {
+    title: "YouTube channel",
+    body: "channel title and description",
+    prompt: "Create a compact widget for https://www.youtube.com/@YouTube showing the channel title and description with a button to open the channel",
+  },
+  {
+    title: "XDA Developers",
+    body: "latest page headlines",
+    prompt: "Turn https://www.xda-developers.com/ into a compact widget showing the page title and top article headings",
   },
 ];
 
-/**
- * Chat-style home: describe a widget, get a draft back, save it.
- *
- * Requests go to the server agent (Claude + Composio, see `src/server/agent.ts`), which
- * returns a widget document. When the agent is not configured or unreachable the chat
- * falls back to an on-device draft and says so. The thread is session-only state.
- */
+const QUERY_LABELS: Record<string, string> = {
+  assigned_issues: "issues assigned to you",
+  open_pull_requests: "your open pull requests",
+  review_requests: "pull requests waiting for your review",
+};
+
+/** Turns backend errors into a useful assistant response. */
+function generationError(result: Extract<Awaited<ReturnType<typeof generateWidget>>, { ok: false }>): string {
+  if (result.code === "LLM_UNAVAILABLE") return "Widget generation isn't set up on the server yet (no AI key).";
+  return [result.message, ...result.details].join("\n");
+}
+
+function generatedReply(spec: WidgetSpec, updated: boolean): string {
+  const sources = spec.dataSources.map((source) => source.connector === "github"
+    ? `${QUERY_LABELS[source.query] ?? source.query} from GitHub`
+    : new URL(source.url).hostname,
+  );
+  const summary = updated ? "Updated the same widget." : `Here's a preview of "${spec.name}".`;
+  return `${summary}${sources.length ? ` It uses ${sources.join(" and ")}.` : ""}`;
+}
+
+/** Chat-style home: sends prompts to the WidgetComposer API. The thread is session-only state. */
 export default function Home() {
-  const { widgets, save, stage } = useWidgetStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [attachedUrl, setAttachedUrl] = useState<string | null>(null);
+  const [attachedImage, setAttachedImage] = useState<ReferenceImage | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [contentWidth, setContentWidth] = useState(0);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-
-  const cardWidth = Math.min((contentWidth - 42) * 0.78, 260);
+  const params = useLocalSearchParams<{ widget?: string; refresh?: string; ts?: string }>();
+  const handledRefreshRef = useRef<string | null>(null);
 
   // Android back closes the drawer before leaving the screen.
   useEffect(() => {
@@ -74,106 +108,130 @@ export default function Home() {
     return () => sub.remove();
   }, [drawerOpen]);
 
-  // Bumped by "New widget" so a reply that lands after the thread was cleared is dropped.
-  const threadRef = useRef(0);
-  const busy = messages.some((m) => m.role === "assistant" && m.status === "pending");
+  // Placed widgets get fresh data whenever the app is opened or comes back to the foreground.
+  useEffect(() => {
+    void refreshPlacedWidgets();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshPlacedWidgets();
+    });
+    return () => sub.remove();
+  }, []);
 
-  const localDraft = (url: string, description: string): SavedWidget => ({
-    id: `w_${Date.now().toString(36)}`,
-    name: nameFromUrl(url),
-    url,
-    description,
-    theme: "dark",
-    createdAt: Date.now(),
-  });
+  useEffect(() => {
+    if (params.refresh !== "true" || !params.widget || !params.ts) return;
+    const key = `${params.widget}:${params.ts}`;
+    if (handledRefreshRef.current === key) return;
+    handledRefreshRef.current = key;
+    void refreshPlacedWidgets({ widgetId: params.widget, force: true });
+  }, [params.refresh, params.ts, params.widget]);
+
+  // Bumped by "New chat" so a reply that lands after the thread was cleared is dropped.
+  const threadRef = useRef(0);
+  const activeWidgetId = useRef<string | null>(null);
+  const busy = messages.some((m) => m.role === "assistant" && m.pending);
 
   const send = async () => {
     const { url, description } = parseRequest(text, attachedUrl);
-    if (busy || (!url && !description)) return;
+    if (busy || (!url && !description && !attachedImage)) return;
 
     const thread = threadRef.current;
     const replyId = messageId();
+    const prompt = [text.trim(), attachedUrl].filter(Boolean).join(" ") || "Create a widget based on the attached reference image.";
     setMessages((current) => [
       ...current,
-      { id: messageId(), role: "user", text: text.trim(), url: attachedUrl },
-      { id: replyId, role: "assistant", status: "pending" },
+      { id: messageId(), role: "user", text: text.trim(), url: attachedUrl, imageUri: attachedImage?.uri ?? null },
+      { id: replyId, role: "assistant", pending: true },
     ]);
     setText("");
     setAttachedUrl(null);
+    setAttachedImage(null);
 
-    const result = await composeWithAgent(text.trim() || `A widget for ${url}`, url);
-    if (threadRef.current !== thread) return;
-
-    let reply: AssistantDone;
-    if (result.ok) {
-      const doc = result.document;
-      reply = {
-        id: replyId,
-        role: "assistant",
-        status: "done",
-        source: "agent",
-        saved: false,
-        toolsUsed: result.toolsUsed,
-        widget: {
-          id: `w_${Date.now().toString(36)}`,
-          name: result.name,
-          url: url ?? "",
-          description,
-          summary: result.summary,
-          document: doc,
-          dataSource: result.dataSource,
-          refreshedAt: result.dataSource ? Date.now() : undefined,
-          theme: doc.scheme === "light" ? "light" : "dark",
-          createdAt: Date.now(),
-        },
-      };
-    } else if (result.reason === "needs_input") {
-      reply = { id: replyId, role: "assistant", status: "done", source: "agent", saved: false, widget: null, text: result.message, toolsUsed: result.toolsUsed };
-    } else {
-      // Agent unavailable or failed: fall back to the on-device draft, and say why.
-      reply = {
-        id: replyId,
-        role: "assistant",
-        status: "done",
-        source: "local",
-        saved: false,
-        widget: url ? localDraft(url, description) : null,
-        note:
-          result.reason === "unconfigured"
-            ? "The widget agent isn't set up on the server, so this is a local draft."
-            : `${result.message} This is a local draft instead.`,
-      };
+    const widgetId = activeWidgetId.current;
+    const result = await generateWidget(prompt, widgetId ?? undefined, attachedImage
+      ? { mediaType: attachedImage.mediaType, base64: attachedImage.base64 }
+      : undefined);
+    if (!result.ok) {
+      if (threadRef.current !== thread) return;
+      setMessages((current) => current.map((m) =>
+        m.id === replyId ? { id: replyId, role: "assistant", text: generationError(result) } : m,
+      ));
+      return;
     }
-    setMessages((current) => current.map((m) => (m.id === replyId ? reply : m)));
+
+    const { spec, generationRunId } = result.data;
+    if (threadRef.current !== thread) return;
+    const saved = widgetId
+      ? await saveWidgetVersion(widgetId, spec, generationRunId)
+      : await saveWidget(spec, generationRunId);
+    if (threadRef.current !== thread) return;
+    if (!saved.ok) {
+      setMessages((current) => current.map((m) =>
+        m.id === replyId ? { id: replyId, role: "assistant", text: `I couldn't save this widget update: ${saved.message}` } : m,
+      ));
+      return;
+    }
+    const savedWidgetId = widgetId ?? saved.data.id;
+    activeWidgetId.current = savedWidgetId;
+    const preview = await previewData(spec);
+    if (threadRef.current !== thread) return;
+    const placed = preview.ok && syncPlacedWidget(savedWidgetId, spec, preview.data.data, preview.data.sample);
+    setMessages((current) => current.map((m) =>
+      m.id === replyId
+        ? {
+            id: replyId,
+            role: "assistant",
+            text: generatedReply(spec, widgetId !== null),
+            spec,
+            widgetId: savedWidgetId,
+            data: preview.ok ? preview.data.data : null,
+            sample: preview.ok && preview.data.sample,
+            generationRunId,
+            ...(placed ? { placement: { kind: "updated" as const } } : {}),
+          }
+        : placed && m.role === "assistant" && "spec" in m && m.widgetId === savedWidgetId
+          ? { ...m, placement: { kind: "updated" as const } }
+          : m,
+    ));
   };
 
-  const updateReply = (id: string, update: (m: AssistantDone) => AssistantDone) =>
-    setMessages((current) =>
-      current.map((m) => (m.id === id && m.role === "assistant" && m.status === "done" ? update(m) : m)),
-    );
+  const addWidget = async (id: string) => {
+    const message = messages.find((item) => item.id === id);
+    if (!message || message.role !== "assistant" || !("spec" in message) || !message.spec || message.adding) return;
+    if (message.placement && message.placement.kind !== "failed") return;
 
-  const saveWidget = (id: string, widget: SavedWidget) => {
-    save(widget);
-    updateReply(id, (m) => ({ ...m, saved: true }));
+    setMessages((current) => current.map((item) =>
+      item.id === id && item.role === "assistant" && "spec" in item ? { ...item, adding: true } : item,
+    ));
+    const placement = await addToHomeScreen(message.spec, message.generationRunId, {
+      data: message.data ?? null,
+      sample: message.sample ?? false,
+    }, message.widgetId);
+    setMessages((current) => current.map((item) =>
+      item.id === id && item.role === "assistant" && "spec" in item ? { ...item, adding: false, placement } : item,
+    ));
   };
 
-  const toggleTheme = (id: string, widget: SavedWidget, saved: boolean) => {
-    const next: SavedWidget = { ...widget, theme: widget.theme === "light" ? "dark" : "light" };
-    if (saved) save(next);
-    updateReply(id, (m) => ({ ...m, widget: next }));
-  };
-
-  const openWidget = (widget: SavedWidget, saved: boolean) => {
-    // Unsaved drafts are staged: an agent document does not fit in route params.
-    if (!saved) stage(widget);
-    router.push({ pathname: "/widget/preview", params: { id: widget.id } });
+  const reviewDesign = async (id: string) => {
+    const message = messages.find((item) => item.id === id);
+    if (!message || message.role !== "assistant" || !("spec" in message) || !message.spec || message.reviewing) return;
+    setMessages((current) => current.map((item) => item.id === id && item.role === "assistant" && "spec" in item
+      ? { ...item, reviewing: true, designReviewError: undefined }
+      : item));
+    const result = await validateWidgetDesign(message.spec);
+    setMessages((current) => current.map((item) => item.id === id && item.role === "assistant" && "spec" in item
+      ? result.ok
+        ? { ...item, reviewing: false, designReview: result.data.review, designReviewError: undefined }
+        : { ...item, reviewing: false, designReviewError: result.message }
+      : item));
   };
 
   const newChat = () => {
     threadRef.current += 1;
+    activeWidgetId.current = null;
     setMessages([]);
     setText("");
     setAttachedUrl(null);
+    setAttachedImage(null);
     setDrawerOpen(false);
   };
 
@@ -209,7 +267,7 @@ export default function Home() {
             disabled={empty}
             hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel="New widget"
+            accessibilityLabel="New chat"
             accessibilityState={{ disabled: empty }}
             style={styles.headerButton}
           >
@@ -228,7 +286,6 @@ export default function Home() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
-          onLayout={(e) => setContentWidth(e.nativeEvent.layout.width - spacing.lg * 2)}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
           {empty ? (
@@ -238,24 +295,32 @@ export default function Home() {
                 style={styles.welcomeLogo}
                 contentFit="contain"
               />
-              <Text style={styles.welcomeTitle}>What should we put on your home screen?</Text>
-              <Text style={styles.welcomeBody}>Name a website and what you want to see from it.</Text>
+              <Text style={styles.welcomeTitle}>What should your widget show?</Text>
+              <Text style={styles.welcomeBody}>Describe a widget, share a website, or ask for GitHub activity or a local clock.</Text>
             </View>
           ) : (
             messages.map((m) =>
               m.role === "user" ? (
-                <UserMessage key={m.id} text={m.text} url={m.url} />
-              ) : m.status === "pending" ? (
+                <UserMessage key={m.id} text={m.text} url={m.url} imageUri={m.imageUri} />
+              ) : m.pending ? (
                 <PendingMessage key={m.id} />
-              ) : (
-                <AssistantMessage
+              ) : m.spec ? (
+                <GeneratedWidgetMessage
                   key={m.id}
-                  message={m}
-                  cardWidth={cardWidth}
-                  onSave={() => m.widget && saveWidget(m.id, m.widget)}
-                  onToggleTheme={() => m.widget && toggleTheme(m.id, m.widget, m.saved)}
-                  onOpen={() => m.widget && openWidget(m.widget, m.saved)}
+                  text={m.text}
+                  spec={m.spec}
+                  data={m.data ?? null}
+                  sample={m.sample ?? false}
+                  designReview={m.designReview}
+                  reviewing={m.reviewing ?? false}
+                  designReviewError={m.designReviewError}
+                  placement={m.placement}
+                  adding={m.adding ?? false}
+                  onAdd={() => void addWidget(m.id)}
+                  onReview={() => void reviewDesign(m.id)}
                 />
+              ) : (
+                <AssistantMessage key={m.id} text={m.text} />
               ),
             )
           )}
@@ -290,6 +355,8 @@ export default function Home() {
             onChangeText={setText}
             attachedUrl={attachedUrl}
             onAttachUrl={setAttachedUrl}
+            attachedImage={attachedImage}
+            onAttachImage={setAttachedImage}
             onSend={send}
             busy={busy}
           />
@@ -299,10 +366,7 @@ export default function Home() {
       <Sidebar
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        widgets={widgets}
         onNewChat={newChat}
-        onOpenWidget={(w) => fromDrawer(() => openWidget(w, true))}
-        onOpenGitHub={() => fromDrawer(() => router.push("/github"))}
         onOpenProfile={() => fromDrawer(() => router.push("/profile"))}
       />
     </Screen>

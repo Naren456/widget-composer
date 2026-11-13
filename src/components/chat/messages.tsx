@@ -1,15 +1,16 @@
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
-import { SymbolView, type SymbolViewProps } from "expo-symbols";
+import { SymbolView } from "expo-symbols";
 import { memo } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { WidgetCard } from "@/components/widget-cards/widget-card";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-import { type AssistantDone } from "@/features/chat/compose";
-import { hostFromUrl } from "@/types/widget";
+import { hostFromUrl } from "@/utils/url";
+import { SpecPreview } from "@/components/widget-preview/spec-preview";
+import type { DesignReview, WidgetDataMap, WidgetSpec } from "@/services/widget-api";
+import type { PlaceOutcome } from "@/features/home-screen/home-screen-widgets";
 
-export const UserMessage = memo(function UserMessage({ text, url }: { text: string; url: string | null }) {
+export const UserMessage = memo(function UserMessage({ text, url, imageUri }: { text: string; url: string | null; imageUri?: string | null }) {
   return (
     <View style={styles.userRow}>
       <View style={styles.userBubble}>
@@ -22,6 +23,7 @@ export const UserMessage = memo(function UserMessage({ text, url }: { text: stri
           </View>
         )}
         {text.length > 0 && <Text style={styles.userText}>{text}</Text>}
+        {imageUri ? <Image source={{ uri: imageUri }} style={styles.userReferenceImage} contentFit="cover" accessibilityLabel="Widget design reference" /> : null}
       </View>
     </View>
   );
@@ -39,11 +41,9 @@ function AssistantAvatar() {
   );
 }
 
-type Action = { label: string; icon: SymbolViewProps["name"]; onPress: () => void; active?: boolean };
-
 const URL_PATTERN = /(https?:\/\/[^\s)]+)/g;
 
-/** Agent text with tappable links, e.g. a Composio connect link. */
+/** Assistant text with tappable links. */
 function LinkedText({ text }: { text: string }) {
   return (
     <Text style={styles.assistantText}>
@@ -65,130 +65,111 @@ function LinkedText({ text }: { text: string }) {
   );
 }
 
-/** Shown while the server agent builds a reply; the request is genuinely in flight. */
+/** Shown while the request is genuinely in flight. */
 export function PendingMessage() {
   return (
     <View style={styles.assistantRow} accessibilityLiveRegion="polite">
       <AssistantAvatar />
       <View style={[styles.assistantBody, styles.pending]}>
         <ActivityIndicator color={colors.brand} />
-        <Text style={styles.pendingText}>Building your widget…</Text>
+        <Text style={styles.pendingText}>Sending…</Text>
       </View>
     </View>
   );
 }
 
-type AssistantProps = {
-  message: AssistantDone;
-  cardWidth: number;
-  onSave: () => void;
-  onToggleTheme: () => void;
-  onOpen: () => void;
-};
-
-/**
- * A finished reply. Says who built the widget — the server agent or the on-device
- * fallback — and never claims website content was read when it was not.
- */
-export const AssistantMessage = memo(function AssistantMessage({
-  message,
-  cardWidth,
-  onSave,
-  onToggleTheme,
-  onOpen,
-}: AssistantProps) {
-  const { widget, saved, source, text, note, toolsUsed } = message;
-
-  if (!widget) {
-    return (
-      <View style={styles.assistantRow}>
-        <AssistantAvatar />
-        <View style={styles.assistantBody}>
-          {text ? (
-            <LinkedText text={text} />
-          ) : (
-            <Text style={styles.assistantText}>
-              Which website should this widget use? Add one with{" "}
-              <Text style={styles.strong}>+</Text>, or include it in your message, like{" "}
-              <Text style={styles.strong}>techcrunch.com</Text>.
-            </Text>
-          )}
-          {note && <Text style={styles.note}>{note}</Text>}
-        </View>
-      </View>
-    );
-  }
-
-  const host = widget.url ? hostFromUrl(widget.url) : null;
-  const actions: Action[] = [
-    saved
-      ? { label: "Saved", icon: { ios: "checkmark", android: "check", web: "check" }, onPress: onOpen, active: true }
-      : { label: "Save", icon: { ios: "plus", android: "add", web: "add" }, onPress: onSave },
-    {
-      label: widget.theme === "light" ? "Light" : "Dark",
-      icon:
-        widget.theme === "light"
-          ? { ios: "sun.max", android: "light_mode", web: "light_mode" }
-          : { ios: "moon", android: "dark_mode", web: "dark_mode" },
-      onPress: onToggleTheme,
-    },
-    { label: "Open", icon: { ios: "arrow.up.right", android: "open_in_new", web: "open_in_new" }, onPress: onOpen },
-  ];
-
+export const AssistantMessage = memo(function AssistantMessage({ text }: { text: string }) {
   return (
     <View style={styles.assistantRow}>
       <AssistantAvatar />
       <View style={styles.assistantBody}>
-        {source === "agent" && widget.summary ? (
-          <Text style={styles.assistantText}>{widget.summary}</Text>
-        ) : (
-          <Text style={styles.assistantText}>
-            Here&apos;s a draft widget for <Text style={styles.strong}>{host}</Text>
-            {widget.description ? (
-              <>
-                {" "}that will show: <Text style={styles.quote}>{widget.description}</Text>
-              </>
-            ) : (
-              "."
-            )}
-          </Text>
-        )}
-
-        {cardWidth > 0 && (
-          <View style={styles.card}>
-            <WidgetCard widget={widget} width={cardWidth} onPress={onOpen} />
-          </View>
-        )}
-
-        <View style={styles.actions}>
-          {actions.map((a) => (
-            <Pressable
-              key={a.label}
-              onPress={a.onPress}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.action, a.active && styles.actionActive, pressed && styles.pressed]}
-            >
-              <SymbolView name={a.icon} tintColor={a.active ? colors.brand : colors.textMuted} size={15} />
-              <Text style={[styles.actionText, a.active && styles.actionTextActive]}>{a.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {toolsUsed && toolsUsed.length > 0 && (
-          <Text style={styles.note}>Data via Composio: {[...new Set(toolsUsed)].join(", ")}</Text>
-        )}
-        <Text style={styles.note}>
-          {saved
-            ? "Saved to My widgets for this session."
-            : note ??
-              (source === "agent"
-                ? "Built by the widget agent."
-                : "Website content isn't fetched yet — the card shows your request.")}
-        </Text>
+        <LinkedText text={text} />
       </View>
     </View>
   );
 });
+
+function placementText(placement: PlaceOutcome): string {
+  switch (placement.kind) {
+    case "prompted": return "Confirm the launcher prompt to place it on your home screen.";
+    case "manual": return "Saved. Long-press your home screen, open Widgets, then add WidgetComposer.";
+    case "updated": return "Updated on your home screen.";
+    case "unsupported": return "Saved to your account. Home-screen placement is available in the Android app.";
+    case "failed": return `Couldn't save this widget: ${placement.message}`;
+  }
+}
+
+export function GeneratedWidgetMessage({
+  text,
+  spec,
+  data,
+  sample,
+  placement,
+  adding,
+  designReview,
+  reviewing,
+  designReviewError,
+  onAdd,
+  onReview,
+}: {
+  text: string;
+  spec: WidgetSpec;
+  data: WidgetDataMap | null;
+  sample: boolean;
+  placement?: PlaceOutcome;
+  adding: boolean;
+  designReview?: DesignReview;
+  reviewing: boolean;
+  designReviewError?: string;
+  onAdd: () => void;
+  onReview: () => void;
+}) {
+  const canRetry = placement?.kind === "failed";
+  return (
+    <View style={styles.assistantRow}>
+      <AssistantAvatar />
+      <View style={styles.generatedBody}>
+        <Text style={styles.assistantText}>{text}</Text>
+        <SpecPreview spec={spec} data={data} sample={sample} />
+        {designReview ? (
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewScore}>Design review · {designReview.score}/100</Text>
+            <Text style={styles.reviewText}>{designReview.summary}</Text>
+            {designReview.improvements.map((item, index) => <Text key={`i-${index}`} style={styles.reviewText}>• {item}</Text>)}
+            {designReview.improvements.length === 0 && designReview.strengths.slice(0, 2).map((item, index) => <Text key={`s-${index}`} style={styles.reviewText}>• {item}</Text>)}
+          </View>
+        ) : null}
+        {designReviewError ? <Text style={styles.reviewError}>{designReviewError}</Text> : null}
+        <Pressable
+          onPress={onReview}
+          disabled={reviewing}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: reviewing }}
+          style={({ pressed }) => [styles.reviewButton, pressed && !reviewing && styles.addButtonPressed]}
+        >
+          {reviewing ? <ActivityIndicator size="small" color={colors.brand} /> : null}
+          <Text style={styles.reviewButtonText}>{reviewing ? "Reviewing design…" : designReview ? "Review again" : "Validate design"}</Text>
+        </Pressable>
+        {placement ? (
+          <Text style={[styles.placementText, placement.kind === "failed" && styles.placementError]}>
+            {placementText(placement)}
+          </Text>
+        ) : null}
+        {!placement || canRetry ? (
+          <Pressable
+            onPress={onAdd}
+            disabled={adding}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: adding }}
+            style={({ pressed }) => [styles.addButton, adding && styles.addButtonDisabled, pressed && !adding && styles.addButtonPressed]}
+          >
+            <Text style={styles.addButtonText}>{adding ? "Saving…" : canRetry ? "Try again" : "Add to home screen"}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   userRow: {
@@ -218,6 +199,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.text,
   },
+  userReferenceImage: { width: 180, height: 128, borderRadius: radius.md, marginTop: spacing.xs },
   assistantRow: {
     flexDirection: "row",
     gap: spacing.md,
@@ -240,19 +222,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 4,
   },
+  generatedBody: {
+    flex: 1,
+    gap: spacing.md,
+    paddingTop: 4,
+  },
   assistantText: {
     ...typography.body,
     fontSize: 16,
     lineHeight: 24,
     color: colors.text,
-  },
-  strong: {
-    fontWeight: "700",
-    color: colors.brand,
-  },
-  link: {
-    color: colors.brand,
-    textDecorationLine: "underline",
   },
   pending: {
     flexDirection: "row",
@@ -263,46 +242,26 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textMuted,
   },
-  quote: {
-    color: colors.textMuted,
-  },
-  card: {
-    marginTop: spacing.md,
-  },
-  actions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  action: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  actionActive: {
-    borderColor: "rgba(166, 239, 92, 0.4)",
-    backgroundColor: colors.brandWash,
-  },
-  actionText: {
-    ...typography.meta,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  actionTextActive: {
+  link: {
     color: colors.brand,
+    textDecorationLine: "underline",
   },
-  note: {
-    ...typography.meta,
-    color: colors.textSubtle,
-    marginTop: spacing.sm,
+  addButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand,
   },
-  pressed: {
-    opacity: 0.75,
-  },
+  addButtonDisabled: { opacity: 0.55 },
+  addButtonPressed: { opacity: 0.8 },
+  addButtonText: { color: colors.background, fontSize: 14, fontWeight: "700" },
+  placementText: { ...typography.meta, color: colors.textMuted, lineHeight: 18 },
+  placementError: { color: "#FF9A8F" },
+  reviewCard: { gap: 5, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  reviewScore: { ...typography.meta, color: colors.brand, fontWeight: "700" },
+  reviewText: { ...typography.meta, color: colors.textMuted, lineHeight: 18 },
+  reviewError: { ...typography.meta, color: "#FF9A8F" },
+  reviewButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
+  reviewButtonText: { ...typography.meta, color: colors.brand, fontWeight: "700" },
 });

@@ -1,27 +1,27 @@
-import { normalizeUrl, type SavedWidget } from "@/types/widget";
+import { normalizeUrl } from "@/utils/url";
+import type { PlaceOutcome } from "@/features/home-screen/home-screen-widgets";
+import type { DesignReview, WidgetDataMap, WidgetSpec } from "@/services/widget-api";
 
 export type ChatMessage =
-  | { id: string; role: "user"; text: string; url: string | null }
-  /** The server agent is still working on the request. */
-  | { id: string; role: "assistant"; status: "pending" }
+  | { id: string; role: "user"; text: string; url: string | null; imageUri?: string | null }
+  /** Waiting for the API. */
+  | { id: string; role: "assistant"; pending: true }
   | {
       id: string;
       role: "assistant";
-      status: "done";
-      /** The draft built for the request; null when there is nothing to show yet. */
-      widget: SavedWidget | null;
-      saved: boolean;
-      /** "agent" when the server agent built it, "local" for the on-device fallback. */
-      source: "agent" | "local";
-      /** Agent's own words when it needs something first, e.g. a Composio connect link. */
-      text?: string;
-      /** Why a local draft was made instead, shown under the reply. */
-      note?: string;
-      /** Composio tools the agent called. */
-      toolsUsed?: string[];
+      pending?: false;
+      text: string;
+      spec?: WidgetSpec;
+      widgetId?: string;
+      data?: WidgetDataMap | null;
+      sample?: boolean;
+      generationRunId?: string;
+      designReview?: DesignReview;
+      reviewing?: boolean;
+      designReviewError?: string;
+      placement?: PlaceOutcome;
+      adding?: boolean;
     };
-
-export type AssistantDone = Extract<ChatMessage, { status: "done" }>;
 
 /** Words that look like a website, e.g. "techcrunch.com" or "https://news.ycombinator.com/best". */
 // The last label must be letters so "v1.2" or "e.g." are not taken for sites.

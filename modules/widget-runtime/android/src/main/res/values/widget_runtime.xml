@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="widget_runtime_label">WidgetComposer</string>
+  <string name="widget_runtime_description">A widget you designed in WidgetComposer</string>
+  <string name="widget_runtime_empty">Create a widget in WidgetComposer, then add it here.</string>
+</resources>

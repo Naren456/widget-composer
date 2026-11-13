@@ -1,0 +1,38 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:1-16:12
+INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:1-16:12
+	package
+		INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:11-69
+application
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-15:17
+receiver#expo.modules.widgetruntime.ComposerWidgetProvider
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:4:5-14:16
+	android:label
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:7:7-51
+	android:exported
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:6:7-30
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:5:7-71
+intent-filter#action:name:android.appwidget.action.APPWIDGET_UPDATE
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:8:7-10:23
+action#android.appwidget.action.APPWIDGET_UPDATE
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:9-76
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:17-73
+meta-data#android.appwidget.provider
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:11:7-13:55
+	android:resource
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:13:9-52
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:12:9-50
+uses-sdk
+INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml
+INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml

@@ -3,7 +3,7 @@ import { useEffect } from "react";
 
 import { preloadOnboardingAssets } from "@/features/onboarding/onboarding-assets";
 import { hasSeenOnboarding } from "@/features/onboarding/onboarding-state";
-import { CreatingWidgetScreen } from "@/features/widgets/creating-widget-screen";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 /** Returning users only see the brand moment. */
 const SPLASH_MS = 1600;
@@ -40,7 +40,7 @@ export default function Index() {
   }, []);
 
   return (
-    <CreatingWidgetScreen
+    <LoadingScreen
       title="Getting things ready…"
       note={"Describe a widget and WidgetComposer\nwill compose it for you."}
     />

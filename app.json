@@ -18,7 +18,7 @@
       "package": "com.narendra78.web2widgets"
     },
     "web": {
-      "output": "server",
+      "output": "static",
       "favicon": "./assets/app-icon/favicon.png"
     },
     "plugins": [
@@ -29,25 +29,6 @@
           "backgroundColor": "#070C09",
           "image": "./assets/app-icon/splash-icon.png",
           "imageWidth": 220
-        }
-      ],
-      [
-        "expo-widgets",
-        {
-          "enableAndroid": true,
-          "widgets": [
-            {
-              "name": "ComposerWidget",
-              "displayName": "Widget Composer",
-              "description": "Your most recently composed widget.",
-              "android": {
-                "targetCellWidth": 4,
-                "targetCellHeight": 2,
-                "resizeMode": "horizontal",
-                "initialLayout": "./src/home-screen-widget/composer-widget.tsx"
-              }
-            }
-          ]
         }
       ]
     ],
@@ -70,23 +51,6 @@
         }
       },
       "eas": {
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "ExpoWidgetsTarget",
-                  "bundleIdentifier": "com.narendra78.web2widgets.ExpoWidgetsTarget",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.com.narendra78.web2widgets"
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        },
         "projectId": "54fc485c-56f8-459c-a630-97b6924d382c"
       }
     },

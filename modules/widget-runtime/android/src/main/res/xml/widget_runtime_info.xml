@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No periodic updatePeriodMillis: the app pushes new data, so the widget never wakes the device on its own. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="180dp"
+  android:minHeight="110dp"
+  android:targetCellWidth="3"
+  android:targetCellHeight="2"
+  android:minResizeWidth="110dp"
+  android:minResizeHeight="70dp"
+  android:resizeMode="horizontal|vertical"
+  android:widgetCategory="home_screen"
+  android:initialLayout="@layout/widget_runtime_root"
+  android:previewLayout="@layout/widget_runtime_root"
+  android:description="@string/widget_runtime_description"
+  android:updatePeriodMillis="0" />

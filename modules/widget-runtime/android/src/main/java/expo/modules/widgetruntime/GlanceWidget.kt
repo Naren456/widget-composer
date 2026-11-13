@@ -1,0 +1,363 @@
+package expo.modules.widgetruntime
+
+import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import android.util.Log
+import android.widget.RemoteViews
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.action.clickable
+import androidx.glance.appwidget.AndroidRemoteViews
+import androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.appwidget.provideContent
+import androidx.glance.background
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
+import androidx.glance.layout.Column
+import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
+import androidx.glance.layout.ContentScale
+import androidx.glance.layout.defaultWeight
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.height
+import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
+import androidx.glance.text.FontWeight
+import androidx.glance.text.FontFamily
+import androidx.glance.text.Text
+import androidx.glance.text.TextDecoration
+import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
+import androidx.glance.appwidget.cornerRadius
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** Declarative Android home-screen renderer for the same validated WidgetSpec. */
+internal class ComposerGlanceWidget : GlanceAppWidget() {
+  override val sizeMode = SizeMode.Responsive(
+    setOf(DpSize(180.dp, 110.dp), DpSize(240.dp, 130.dp), DpSize(300.dp, 200.dp)),
+  )
+
+  override suspend fun provideGlance(context: Context, id: androidx.glance.GlanceId) {
+    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+    val store = WidgetStore(context)
+    val widgetId = store.boundWidget(appWidgetId) ?: store.latestId()?.also { store.bind(appWidgetId, it) }
+    val payload = widgetId?.let(store::get)
+    val spec = payload?.optJSONObject("spec")
+    val data = payload?.optJSONObject("data")
+    val presentation = spec?.optJSONObject("presentation")
+    val palette = WidgetPalette.from(
+      context,
+      presentation?.optString("theme") ?: "dark",
+      presentation?.optString("fontFamily") ?: "sans",
+    )
+    val images = if (spec != null) decodeImages(spec.optJSONObject("root"), data) else emptyMap()
+    val homeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("web2widgets://home?widget=${Uri.encode(widgetId.orEmpty())}"))
+      .setPackage(context.packageName)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val refreshIntent = Intent(
+      Intent.ACTION_VIEW,
+      Uri.parse("web2widgets://home?widget=${Uri.encode(widgetId.orEmpty())}&refresh=true&ts=${System.currentTimeMillis()}"),
+    ).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    provideContent {
+      Box(
+        modifier = GlanceModifier
+          .fillMaxSize()
+          .background(palette.background)
+          .cornerRadius(20.dp)
+          .clickable(actionStartActivity(homeIntent))
+          .padding(12.dp),
+        contentAlignment = Alignment.TopStart,
+      ) {
+        if (spec == null) {
+          Text("Create a widget in WidgetComposer first", style = textStyle(palette.muted, 13, FontWeight.Normal, palette.fontFamily))
+        } else {
+          Column(modifier = GlanceModifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = GlanceModifier.width(3.dp).height(16.dp).background(palette.accent).cornerRadius(2.dp),
+              ) {}
+              Spacer(GlanceModifier.width(8.dp))
+              Text(spec.optString("name", "Widget"), modifier = GlanceModifier.defaultWeight(), style = textStyle(palette.text, 13, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+              Spacer(GlanceModifier.width(10.dp))
+              Text(
+                "Refresh",
+                modifier = GlanceModifier.clickable(actionStartActivity(refreshIntent)).padding(horizontal = 5.dp, vertical = 3.dp),
+                style = textStyle(palette.accent, 10, FontWeight.Bold, palette.fontFamily),
+                maxLines = 1,
+              )
+            }
+            Spacer(GlanceModifier.height(7.dp))
+            val root = spec.optJSONObject("root")
+            if (root != null) {
+              WidgetNodeView(root, data, images, palette, context, homeIntent, refreshIntent)
+            }
+            if (payload?.optBoolean("sample", false) == true) {
+              Spacer(GlanceModifier.height(5.dp))
+              Text("Sample data", style = textStyle(palette.muted, 9, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  override fun onCompositionError(
+    context: Context,
+    glanceId: androidx.glance.GlanceId,
+    appWidgetId: Int,
+    throwable: Throwable,
+  ) {
+    Log.e(ComposerWidgetProvider.TAG, "Glance render failed for widget instance $appWidgetId", throwable)
+    val store = WidgetStore(context)
+    val widgetId = store.boundWidget(appWidgetId) ?: store.latestId()
+    val payload = widgetId?.let(store::get)
+    val fallback = if (widgetId != null && payload != null) {
+      runCatching { WidgetRenderer(context, appWidgetId, widgetId, payload).render() }
+        .getOrElse { RemoteViews(context.packageName, R.layout.widget_runtime_root) }
+    } else {
+      RemoteViews(context.packageName, R.layout.widget_runtime_root)
+    }
+    android.appwidget.AppWidgetManager.getInstance(context).updateAppWidget(appWidgetId, fallback)
+  }
+
+  private fun decodeImages(root: JSONObject?, data: JSONObject?): Map<String, Bitmap> {
+    val bindings = linkedSetOf<String>()
+    collectImageBindings(root, bindings)
+    return bindings.mapNotNull { binding ->
+      val match = IMAGE_BINDING.matchEntire(binding) ?: return@mapNotNull null
+      val index = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+      val encoded = data?.optJSONObject(match.groupValues[1])?.optJSONArray("items")
+        ?.optJSONObject(index)?.optString("imageData")?.takeIf(String::isNotBlank)
+        ?: return@mapNotNull null
+      decodeImage(encoded)?.let { bitmap -> binding to bitmap }
+    }.toMap()
+  }
+
+  private fun collectImageBindings(node: JSONObject?, found: MutableSet<String>) {
+    if (node == null) return
+    when (node.optString("type")) {
+      "image" -> node.optString("source").takeIf { IMAGE_BINDING.matches(it) }?.let(found::add)
+      "column", "row" -> node.optJSONArray("children")?.let { children ->
+        for (index in 0 until children.length()) collectImageBindings(children.optJSONObject(index), found)
+      }
+    }
+  }
+
+  private fun decodeImage(encoded: String): Bitmap? {
+    if (encoded.length > 700_000) return null
+    return runCatching {
+      val bytes = Base64.decode(encoded, Base64.DEFAULT)
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+      if (bounds.outWidth <= 0 || bounds.outHeight <= 0 || bounds.outWidth > 10_000 || bounds.outHeight > 10_000) {
+        null
+      } else {
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 192) sample *= 2
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+      }
+    }.getOrNull()
+  }
+
+  private companion object {
+    val IMAGE_BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.items\[(\d{1,2})\]\.imageUrl$""")
+  }
+}
+
+private data class WidgetPalette(
+  val background: Color,
+  val text: Color,
+  val muted: Color,
+  val accent: Color,
+  val divider: Color,
+  val fontFamily: FontFamily,
+  val fontKey: String,
+) {
+  companion object {
+    fun from(context: Context, theme: String, fontKey: String): WidgetPalette {
+      val isNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+      val dark = theme == "dark" || (theme == "system" && isNight)
+      val font = when (fontKey) {
+        "serif" -> FontFamily.Serif
+        "monospace" -> FontFamily.Monospace
+        else -> FontFamily.SansSerif
+      }
+      fun parse(value: String) = Color(android.graphics.Color.parseColor(value))
+      return if (dark) {
+        WidgetPalette(parse("#111713"), parse("#F2F5F2"), parse("#A5B0A8"), parse("#A6EF5C"), parse("#303A33"), font, fontKey)
+      } else {
+        WidgetPalette(parse("#F4F7F3"), parse("#172019"), parse("#5E6B61"), parse("#367D21"), parse("#DCE5DC"), font, fontKey)
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalGlanceRemoteViewsApi::class)
+@Composable
+private fun WidgetNodeView(
+  node: JSONObject,
+  data: JSONObject?,
+  images: Map<String, Bitmap>,
+  palette: WidgetPalette,
+  context: Context,
+  homeIntent: Intent,
+  refreshIntent: Intent,
+) {
+  when (node.optString("type")) {
+    "column" -> {
+      val children = node.optJSONArray("children") ?: JSONArray()
+      Column(modifier = GlanceModifier.fillMaxWidth()) {
+        for (index in 0 until minOf(children.length(), 10)) {
+          if (index > 0) Spacer(GlanceModifier.height(node.optInt("gap", 0).coerceIn(0, 64).dp))
+          children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, refreshIntent) }
+        }
+      }
+    }
+    "row" -> {
+      val children = node.optJSONArray("children") ?: JSONArray()
+      Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        for (index in 0 until minOf(children.length(), 10)) {
+          if (index > 0) Spacer(GlanceModifier.width(node.optInt("gap", 0).coerceIn(0, 64).dp))
+          children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, refreshIntent) }
+        }
+      }
+    }
+    "text" -> {
+      val style = node.optString("style", "body")
+      val color = if (style == "caption") palette.muted else palette.text
+      Text(template(node.optString("text"), data), style = textStyle(color, if (style == "title") 17 else if (style == "caption") 10 else 14, if (style == "title") FontWeight.Bold else FontWeight.Normal, palette.fontFamily), maxLines = 3)
+    }
+    "image" -> {
+      val source = node.optString("source")
+      val bitmap = images[source]
+      if (bitmap != null) {
+        Image(ImageProvider(bitmap), node.optString("alt", "Widget image"), GlanceModifier.size(48.dp), ContentScale.Crop)
+      } else {
+        Text(node.optString("alt", "Image unavailable"), style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+      }
+    }
+    "link" -> {
+      val label = node.optString("label")
+      val url = safeUrl(resolve(data, node.optString("urlBinding")))
+      val modifier = if (url != null) GlanceModifier.clickable(actionStartActivity(openUrlIntent(url))) else GlanceModifier
+      Text(label, modifier, style = TextStyle(color = ColorProvider(palette.accent), fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = palette.fontFamily, textDecoration = TextDecoration.Underline), maxLines = 1)
+    }
+    "clock" -> {
+      val clockLayout = when (palette.fontKey) {
+        "serif" -> R.layout.wr_clock_serif
+        "monospace" -> R.layout.wr_clock_monospace
+        else -> R.layout.wr_clock
+      }
+      val remoteViews = RemoteViews(context.packageName, clockLayout).apply {
+        val format = node.optString("format", "12_hour")
+        val seconds = node.optBoolean("showSeconds", false)
+        val timeFormat = if (format == "24_hour") if (seconds) "HH:mm:ss" else "HH:mm" else if (seconds) "h:mm:ss a" else "h:mm a"
+        setCharSequence(R.id.wr_clock_time, "setFormat12Hour", timeFormat)
+        setCharSequence(R.id.wr_clock_time, "setFormat24Hour", timeFormat)
+        setTextColor(R.id.wr_clock_time, palette.accent.toArgb())
+        setViewVisibility(R.id.wr_clock_date, if (node.optBoolean("showDate", false)) android.view.View.VISIBLE else android.view.View.GONE)
+        setCharSequence(R.id.wr_clock_date, "setFormat12Hour", "EEE, MMM d")
+        setCharSequence(R.id.wr_clock_date, "setFormat24Hour", "EEE, MMM d")
+        setTextColor(R.id.wr_clock_date, palette.muted.toArgb())
+      }
+      AndroidRemoteViews(remoteViews)
+    }
+    "metric" -> {
+      Column {
+        Text(resolve(data, node.optString("valueBinding")) ?: "–", style = textStyle(palette.accent, 26, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+        Text(node.optString("label"), style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+      }
+    }
+    "list" -> {
+      val items = data?.optJSONObject(node.optString("source"))?.optJSONArray("items") ?: JSONArray()
+      val count = minOf(items.length(), node.optInt("maxItems", 3).coerceIn(1, 5), 5)
+      if (count == 0) {
+        Text(if (data == null) "Loading…" else "Nothing here", style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+      } else {
+        Column(modifier = GlanceModifier.fillMaxWidth()) {
+          for (index in 0 until count) {
+            val item = items.optJSONObject(index) ?: continue
+            val title = item.optString("title", "Untitled")
+            val url = safeUrl(item.optString("url"))
+            val modifier = if (url != null) GlanceModifier.clickable(actionStartActivity(openUrlIntent(url))).fillMaxWidth() else GlanceModifier.fillMaxWidth()
+            Column(modifier = modifier.padding(vertical = 3.dp)) {
+              Text(title, style = textStyle(palette.text, 13, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+              val repo = item.optString("repo")
+              val number = item.optInt("number", 0)
+              val meta = if (number > 0) "$repo#$number" else repo.ifBlank { item.optString("author") }
+              if (meta.isNotBlank()) Text(meta, style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+            }
+          }
+        }
+      }
+    }
+    "divider" -> Box(GlanceModifier.fillMaxWidth().height(1.dp).background(palette.divider)) {}
+    "spacer" -> Spacer(GlanceModifier.height(node.optInt("sizeDp", 8).coerceIn(1, 64).dp))
+    "button" -> {
+      val label = template(node.optString("label"), data)
+      val action = node.optJSONObject("action")
+      val url = if (action?.optString("type") == "open_url") safeUrl(resolve(data, action.optString("urlBinding"))) else null
+      val intent = when (action?.optString("type")) {
+        "open_url" -> url?.let(::openUrlIntent)
+        "refresh" -> refreshIntent
+        else -> homeIntent
+      }
+      val target = intent ?: homeIntent
+      Box(
+        modifier = GlanceModifier
+          .background(palette.accent)
+          .cornerRadius(16.dp)
+          .clickable(actionStartActivity(target))
+          .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+      ) {
+        Text(label, style = textStyle(palette.background, 11, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+      }
+    }
+  }
+}
+
+private fun textStyle(color: Color, size: Int, weight: FontWeight, fontFamily: FontFamily = FontFamily.SansSerif) =
+  TextStyle(color = ColorProvider(color), fontSize = size.sp, fontWeight = weight, fontFamily = fontFamily)
+
+private fun template(value: String, data: JSONObject?): String = PLACEHOLDER.replace(value) { match ->
+  resolve(data, match.groupValues[1].trim()) ?: "–"
+}
+
+private fun resolve(data: JSONObject?, binding: String): String? {
+  val match = BINDING.matchEntire(binding) ?: return null
+  val source = data?.optJSONObject(match.groupValues[1]) ?: return null
+  if (match.groupValues[2].isEmpty()) return if (source.has("count")) source.optInt("count").toString() else null
+  val item = source.optJSONArray("items")?.optJSONObject(match.groupValues[2].toInt()) ?: return null
+  return item.opt(match.groupValues[3])?.toString()
+}
+
+private fun safeUrl(url: String?): String? = url?.takeIf {
+  it.startsWith("https://") && Uri.parse(it).host?.isNotBlank() == true
+}
+
+private fun openUrlIntent(url: String) = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+private val PLACEHOLDER = Regex("""\{\{\s*([^{}]*?)\s*\}\}""")
+private val BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl))$""")
+

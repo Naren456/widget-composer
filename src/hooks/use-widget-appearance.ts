@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { type ClockThemeName } from "@/theme/clock-themes";
-import { defaultAppearance, type WidgetAppearance } from "@/types/widget";
 import {
   type ColorOption,
   colorOptions,
@@ -12,7 +11,18 @@ import {
   styleOptions,
 } from "@/theme/widget-themes";
 
-export type { WidgetAppearance };
+/** The style, colour and size a widget is composed with. */
+export type WidgetAppearance = {
+  styleId: string;
+  colorId: string;
+  sizeId: string;
+};
+
+const defaultAppearance: WidgetAppearance = {
+  styleId: "minimal",
+  colorId: "green",
+  sizeId: "medium",
+};
 
 export type WidgetAppearanceState = WidgetAppearance & {
   style: StyleOption;

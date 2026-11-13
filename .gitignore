@@ -42,8 +42,5 @@ example
 /ios
 /android
 
-# Server-only secrets for the widget agent (src/server/agent.ts)
+# Local environment (see .env.example)
 .env
-
-# Server-side data store: encrypted credentials (src/server/data-sources/credentials.ts)
-/.data

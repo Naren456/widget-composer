@@ -1,0 +1,35 @@
+buildscript {
+  def kotlinVersion = rootProject.ext.has('kotlinVersion') ? rootProject.ext.kotlinVersion : '2.2.0'
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath "org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}"
+  }
+}
+
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+dependencies {
+  implementation 'androidx.glance:glance-appwidget:1.2.0'
+}
+
+group = 'com.narendra78.web2widgets'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.widgetruntime"
+  buildFeatures {
+    compose true
+  }
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

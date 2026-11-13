@@ -1,0 +1,37 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="expo.modules.widgetruntime" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+5-->INJECTED
+5-->INJECTED
+6
+7    <application>
+7-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-15:17
+8
+9        <!-- Glance renders WidgetSpec v1-v3 as adaptive Android home-screen widgets. -->
+10        <receiver
+10-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:4:5-14:16
+11            android:name="expo.modules.widgetruntime.ComposerWidgetProvider"
+11-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:5:7-71
+12            android:exported="true"
+12-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:6:7-30
+13            android:label="@string/widget_runtime_label" >
+13-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:7:7-51
+14            <intent-filter>
+14-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:8:7-10:23
+15                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+15-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:9-76
+15-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:17-73
+16            </intent-filter>
+17
+18            <meta-data
+18-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:11:7-13:55
+19                android:name="android.appwidget.provider"
+19-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:12:9-50
+20                android:resource="@xml/widget_runtime_info" />
+20-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:13:9-52
+21        </receiver>
+22    </application>
+23
+24</manifest>

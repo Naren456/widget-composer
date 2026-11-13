@@ -4,9 +4,7 @@ import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "@/components/ui/screen";
-import { useWidgetStore } from "@/features/widgets/widget-store";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-import { hostFromUrl } from "@/types/widget";
 
 type Row = {
   title: string;
@@ -18,19 +16,10 @@ type Row = {
 
 /**
  * Profile without an account system: there is no sign-in or backend yet, so identity
- * and plan are not invented, and the stats count only this session's widgets.
+ * and plan are not invented.
  */
 export default function Profile() {
-  const { widgets } = useWidgetStore();
-  const sources = new Set(widgets.filter((w) => w.url).map((w) => hostFromUrl(w.url))).size;
-  const dark = widgets.filter((w) => w.theme === "dark").length;
   const version = Constants.expoConfig?.version ?? "1.0.0";
-
-  const stats: { value: number; label: string; icon: SymbolViewProps["name"] }[] = [
-    { value: widgets.length, label: "Widgets", icon: { ios: "square.grid.2x2", android: "widgets", web: "widgets" } },
-    { value: sources, label: "Sources", icon: { ios: "link", android: "link", web: "link" } },
-    { value: dark, label: "Dark style", icon: { ios: "moon.fill", android: "dark_mode", web: "dark_mode" } },
-  ];
 
   const rows: Row[] = [
     {
@@ -39,15 +28,10 @@ export default function Profile() {
       icon: { ios: "person.fill", android: "person", web: "person" },
     },
     {
-      title: "Manage widgets",
-      body: "View and organize your widgets",
-      icon: { ios: "square.grid.2x2", android: "widgets", web: "widgets" },
-      onPress: () => router.back(),
-    },
-    {
       title: "Connected services",
-      body: "Manage linked accounts",
+      body: "Connect your GitHub account",
       icon: { ios: "link", android: "link", web: "link" },
+      onPress: () => router.push("/connections"),
     },
     {
       title: "Upgrade plan",
@@ -98,16 +82,6 @@ export default function Profile() {
               <Text style={styles.chipText}>Accounts coming soon</Text>
             </View>
           </View>
-        </View>
-
-        <View style={styles.stats}>
-          {stats.map((s) => (
-            <View key={s.label} style={styles.stat} accessible accessibilityLabel={`${s.value} ${s.label}`}>
-              <SymbolView name={s.icon} tintColor={colors.brand} size={22} />
-              <Text style={styles.statValue}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
         </View>
 
         <View style={styles.list}>
@@ -217,32 +191,6 @@ const styles = StyleSheet.create({
   chipText: {
     ...typography.meta,
     color: colors.brand,
-  },
-  stats: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.xl,
-  },
-  stat: {
-    flex: 1,
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.text,
-    marginTop: 4,
-  },
-  statLabel: {
-    ...typography.meta,
-    fontSize: 13,
-    color: colors.textMuted,
   },
   list: {
     marginTop: spacing.xl,

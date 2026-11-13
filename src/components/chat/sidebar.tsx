@@ -1,18 +1,14 @@
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-import { hostFromUrl, type SavedWidget } from "@/types/widget";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  widgets: SavedWidget[];
   onNewChat: () => void;
-  onOpenWidget: (widget: SavedWidget) => void;
-  onOpenGitHub: () => void;
   onOpenProfile: () => void;
 };
 
@@ -48,8 +44,8 @@ function Row({
   );
 }
 
-/** Slide-in drawer in the ChatGPT pattern: new chat up top, history, account at the bottom. */
-export function Sidebar({ open, onClose, widgets, onNewChat, onOpenWidget, onOpenGitHub, onOpenProfile }: Props) {
+/** Slide-in drawer in the ChatGPT pattern: new chat up top, account at the bottom. */
+export function Sidebar({ open, onClose, onNewChat, onOpenProfile }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const drawerWidth = Math.min(width * 0.82, 320);
@@ -87,34 +83,11 @@ export function Sidebar({ open, onClose, widgets, onNewChat, onOpenWidget, onOpe
       >
         <Row
           icon={{ ios: "square.and.pencil", android: "edit_square", web: "edit_square" }}
-          label="New widget"
+          label="New chat"
           onPress={onNewChat}
         />
 
-        <Text style={styles.section}>Sources</Text>
-        <Row
-          icon={{ ios: "chevron.left.forwardslash.chevron.right", android: "code", web: "code" }}
-          label="GitHub"
-          meta="Pull requests and public activity"
-          onPress={onOpenGitHub}
-        />
-
-        <Text style={styles.section}>Your widgets</Text>
-        <ScrollView style={styles.history} showsVerticalScrollIndicator={false}>
-          {widgets.length === 0 ? (
-            <Text style={styles.empty}>Widgets you save show up here.</Text>
-          ) : (
-            widgets.map((w) => (
-              <Row
-                key={w.id}
-                icon={{ ios: "square.grid.2x2", android: "widgets", web: "widgets" }}
-                label={w.name}
-                meta={w.url ? hostFromUrl(w.url) : w.summary}
-                onPress={() => onOpenWidget(w)}
-              />
-            ))
-          )}
-        </ScrollView>
+        <View style={styles.spacer} />
 
         <Pressable
           onPress={onOpenProfile}
@@ -178,23 +151,8 @@ const styles = StyleSheet.create({
     color: colors.textSubtle,
     marginTop: 1,
   },
-  section: {
-    ...typography.meta,
-    color: colors.textSubtle,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: spacing.xl,
-    marginBottom: spacing.xs,
-    paddingHorizontal: spacing.md,
-  },
-  history: {
+  spacer: {
     flex: 1,
-  },
-  empty: {
-    ...typography.meta,
-    color: colors.textSubtle,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
   },
   account: {
     flexDirection: "row",
