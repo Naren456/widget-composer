@@ -1,57 +1,105 @@
-# Welcome to your Expo app 👋
+<p align="center">
+  <img src="assets/app-icon/icon.png" width="96" alt="WidgetComposer logo">
+</p>
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+<h1 align="center">WidgetComposer</h1>
 
-## Get started
+WidgetComposer is a mobile app for creating personalized Android home-screen widgets. Describe what you want in chat, preview and refine the generated widget, then add it to your launcher. Widget definitions are validated data—not generated Android code.
 
-1. Install dependencies
+<img src="shot-01-welcome.png" width="100"> <img src="shot-02-onboarding-widgets.png" width="100"> <img src="shot-03-onboarding-describe.png" width="100"> <img src="shot-04-onboarding-customize.png" width="100"> <img src="shot-05-onboarding-add.png" width="100"> <img src="shot-06-home-compose.png" width="100"> <img src="shot-07-profile.png" width="100"> <img src="shot-08-connections.png" width="100">
 
-   ```bash
-   npm install
-   ```
+## What it does
 
-2. Start the app
+- Creates, previews, and edits widgets from natural-language prompts.
+- Connects widgets to supported live data, including GitHub, public websites, and RSS/Atom news feeds.
+- Saves widgets and versions through the WidgetComposer API.
+- Renders saved widgets on Android with Jetpack Glance and a fixed, validated component set.
+- Refreshes Android widget data through the app or the widget’s background refresh action.
 
-   ```bash
-   npx expo start
-   ```
+The app interface is built with Expo and React Native. **The home-screen widget runtime is Android-only** and uses a local Kotlin Expo module. iOS can run the app, but this repository does not provide an iOS home-screen widget extension. Expo Go does not include the custom Android widget module; use a development build or the installed app.
 
-In the output, you'll find options to open the app in a
+## Project structure
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```text
+src/
+  app/                 Expo Router screens
+  components/          Reusable UI and widget preview components
+  features/             Chat, onboarding, sessions, and home-screen widget flows
+  services/             WidgetComposer API client and generated contract types
+  theme/                App and widget themes
+modules/
+  widget-runtime/       Custom Expo module and Android Glance widget runtime
+android/                Generated native Android project (ignored by Git)
+.github/workflows/      Android APK and iOS Simulator preview builds
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+The mobile app calls the separate [WidgetComposer backend](https://github.com/Naren456/widget-composer-backend). The backend owns authentication, generation, widget validation and storage, connectors, and normalized data fetching. App and backend source checkouts are developed separately.
 
-### Other setup steps
+## Requirements
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+- Node.js 22 (or a compatible current LTS release) and npm.
+- Android Studio and an Android SDK for local Android builds.
+- macOS with Xcode for local iOS builds.
+- A running WidgetComposer API for sign-in, generation, and live widget data.
 
-## Learn more
+## Set up the app
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm ci
+cp .env.example .env
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Set `EXPO_PUBLIC_API_URL` in `.env` to the backend base URL when needed. This value is bundled into the app and is public—**never put API keys, passwords, or other secrets in it**.
 
-## Join the community
+For local development, the app can use the Expo development server’s host and port `3000` as its API address when `EXPO_PUBLIC_API_URL` is empty. Keep the backend running and connect the phone and development computer to the same network, or use `adb reverse`.
 
-Join our community of developers creating universal apps.
+Start the app:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# widget-composer
+```bash
+npm start
+```
+
+Build and run the custom Android app:
+
+```bash
+npm run android
+```
+
+The Android home-screen widget requires this native app build; Expo Go cannot load it. For local iOS app development on macOS, use `npm run ios`. The custom home-screen widget is not available on iOS.
+
+## Run the backend
+
+Follow the setup instructions in the [backend repository](https://github.com/Naren456/widget-composer-backend). For a local checkout alongside this app:
+
+```bash
+cd ../widget-composer-backend
+docker compose up -d db
+cd apps/api
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Configure the backend’s required `SESSION_SECRET` and any providers you want to use. The backend README lists optional AI, Composio, and SearXNG configuration. Keep backend credentials on the server; do not copy them into the app’s `.env`.
+
+## Preview builds
+
+GitHub Actions builds downloadable previews:
+
+- **Android:** `.github/workflows/android-preview.yml` builds a debug APK on pull requests or when run manually from the Actions tab. Download the `android-preview-*` artifact, then install it on a connected Android device with `adb install app-debug.apk`.
+- **iOS Simulator:** `.github/workflows/ios-simulator-preview.yml` builds an unsigned Simulator `.app` on a macOS runner. Download and unzip `ios-simulator-preview-*`, then install the `.app` in a booted iOS Simulator. This is not an IPA and cannot be installed on a physical iPhone or submitted to TestFlight.
+
+Both workflows require the repository Actions variable `EXPO_PUBLIC_API_URL` to be set to an API URL reachable from the device or simulator. The variable is public and is embedded in the preview builds. Workflow artifacts are retained for 14 days.
+
+These are preview builds, not production releases. Android APKs are debug-signed; iOS Simulator builds are unsigned.
+
+## Checks
+
+```bash
+npm run lint
+npx tsc --noEmit
+```
+
+## Widget contract
+
+The backend owns the canonical widget schema. App TypeScript and Android compatibility artifacts are generated from that contract; do not edit generated contract files by hand. See the backend README for its contract generation and validation commands.
