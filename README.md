@@ -6,7 +6,12 @@
 
 WidgetComposer is a mobile app for creating personalized Android home-screen widgets. Describe what you want in chat, preview and refine the generated widget, then add it to your launcher. Widget definitions are validated data—not generated Android code.
 
-<img src="shot-01-welcome.png" width="100"> <img src="shot-02-onboarding-widgets.png" width="100"> <img src="shot-03-onboarding-describe.png" width="100"> <img src="shot-04-onboarding-customize.png" width="100"> <img src="shot-05-onboarding-add.png" width="100"> <img src="shot-06-home-compose.png" width="100"> <img src="shot-07-profile.png" width="100"> <img src="shot-08-connections.png" width="100">
+<p>
+  <img src="shot-01-welcome.png" width="200"> <img src="shot-02-onboarding-widgets.png" width="200"> <img src="shot-03-onboarding-describe.png" width="200"> <img src="shot-04-onboarding-customize.png" width="200">
+</p>
+<p>
+  <img src="shot-05-onboarding-add.png" width="200"> <img src="shot-06-home-compose.png" width="200"> <img src="shot-07-profile.png" width="200"> <img src="shot-08-connections.png" width="200">
+</p>
 
 ## What it does
 
@@ -33,14 +38,12 @@ android/                Generated native Android project (ignored by Git)
 .github/workflows/      Android APK and iOS Simulator preview builds
 ```
 
-The mobile app calls the separate [WidgetComposer backend](https://github.com/Naren456/widget-composer-backend). The backend owns authentication, generation, widget validation and storage, connectors, and normalized data fetching. App and backend source checkouts are developed separately.
-
 ## Requirements
 
 - Node.js 22 (or a compatible current LTS release) and npm.
 - Android Studio and an Android SDK for local Android builds.
 - macOS with Xcode for local iOS builds.
-- A running WidgetComposer API for sign-in, generation, and live widget data.
+- A reachable WidgetComposer API for sign-in, generation, and live widget data.
 
 ## Set up the app
 
@@ -49,9 +52,9 @@ npm ci
 cp .env.example .env
 ```
 
-Set `EXPO_PUBLIC_API_URL` in `.env` to the backend base URL when needed. This value is bundled into the app and is public—**never put API keys, passwords, or other secrets in it**.
+Set `EXPO_PUBLIC_API_URL` in `.env` to the WidgetComposer API URL. This value is bundled into the app and is public—**never put API keys, passwords, or other secrets in it**.
 
-For local development, the app can use the Expo development server’s host and port `3000` as its API address when `EXPO_PUBLIC_API_URL` is empty. Keep the backend running and connect the phone and development computer to the same network, or use `adb reverse`.
+For local development, the app can use the Expo development server’s host and port `3000` as its API address when `EXPO_PUBLIC_API_URL` is empty. Ensure the API is running and reachable from the phone; connect the phone and development computer to the same network, or use `adb reverse`.
 
 Start the app:
 
@@ -66,21 +69,6 @@ npm run android
 ```
 
 The Android home-screen widget requires this native app build; Expo Go cannot load it. For local iOS app development on macOS, use `npm run ios`. The custom home-screen widget is not available on iOS.
-
-## Run the backend
-
-Follow the setup instructions in the [backend repository](https://github.com/Naren456/widget-composer-backend). For a local checkout alongside this app:
-
-```bash
-cd ../widget-composer-backend
-docker compose up -d db
-cd apps/api
-cp .env.example .env
-npm install
-npm run dev
-```
-
-Configure the backend’s required `SESSION_SECRET` and any providers you want to use. The backend README lists optional AI, Composio, and SearXNG configuration. Keep backend credentials on the server; do not copy them into the app’s `.env`.
 
 ## Preview builds
 
@@ -99,7 +87,3 @@ These are preview builds, not production releases. Android APKs are debug-signed
 npm run lint
 npx tsc --noEmit
 ```
-
-## Widget contract
-
-The backend owns the canonical widget schema. App TypeScript and Android compatibility artifacts are generated from that contract; do not edit generated contract files by hand. See the backend README for its contract generation and validation commands.
