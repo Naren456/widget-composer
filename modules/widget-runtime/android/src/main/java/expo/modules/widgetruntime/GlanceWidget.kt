@@ -12,18 +12,23 @@ import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.LocalSize
 import androidx.glance.GlanceModifier
+import androidx.glance.ColorFilter
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.AndroidRemoteViews
 import androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -48,12 +53,11 @@ import androidx.glance.unit.ColorProvider
 import androidx.glance.appwidget.cornerRadius
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.pow
 
 /** Declarative Android home-screen renderer for the same validated WidgetSpec. */
 internal class ComposerGlanceWidget : GlanceAppWidget() {
-  override val sizeMode = SizeMode.Responsive(
-    setOf(DpSize(180.dp, 110.dp), DpSize(240.dp, 130.dp), DpSize(300.dp, 200.dp)),
-  )
+  override val sizeMode = SizeMode.Exact
 
   override suspend fun provideGlance(context: Context, id: androidx.glance.GlanceId) {
     val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
@@ -61,6 +65,8 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
     val widgetId = store.boundWidget(appWidgetId) ?: store.latestId()?.also { store.bind(appWidgetId, it) }
     val payload = widgetId?.let(store::get)
     val spec = payload?.optJSONObject("spec")
+    val schemaVersion = spec?.optInt("schemaVersion") ?: 0
+    val unsupportedSchemaVersion = schemaVersion !in WidgetContract.SUPPORTED_SCHEMA_VERSIONS
     val data = payload?.optJSONObject("data")
     val presentation = spec?.optJSONObject("presentation")
     val palette = WidgetPalette.from(
@@ -73,45 +79,53 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
     val homeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("web2widgets://home?widget=${Uri.encode(widgetId.orEmpty())}"))
       .setPackage(context.packageName)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    val refreshIntent = Intent(
-      Intent.ACTION_VIEW,
-      Uri.parse("web2widgets://home?widget=${Uri.encode(widgetId.orEmpty())}&refresh=true&ts=${System.currentTimeMillis()}"),
-    ).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
+    val refreshAction = actionRunCallback<RefreshWidgetAction>(
+      actionParametersOf(REFRESH_WIDGET_ID_KEY to widgetId.orEmpty()),
+    )
     provideContent {
+      val widgetSize = LocalSize.current
+      val compact = widgetSize.width < 180.dp || widgetSize.height < 110.dp
+      val veryCompact = widgetSize.width < 140.dp || widgetSize.height < 90.dp
+      val outerPadding = if (compact) 8.dp else 16.dp
       Box(
         modifier = GlanceModifier
           .fillMaxSize()
           .background(palette.background)
-          .cornerRadius(20.dp)
+          .cornerRadius(24.dp)
           .clickable(actionStartActivity(homeIntent))
-          .padding(12.dp),
+          .padding(outerPadding),
         contentAlignment = Alignment.TopStart,
       ) {
         if (spec == null) {
           Text("Create a widget in WidgetComposer first", style = textStyle(palette.muted, 13, FontWeight.Normal, palette.fontFamily))
+        } else if (unsupportedSchemaVersion) {
+          Text("Update WidgetComposer to view this widget", style = textStyle(palette.muted, 13, FontWeight.Normal, palette.fontFamily))
         } else {
           Column(modifier = GlanceModifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-              Box(
-                modifier = GlanceModifier.width(3.dp).height(16.dp).background(palette.accent).cornerRadius(2.dp),
-              ) {}
-              Spacer(GlanceModifier.width(8.dp))
-              Text(spec.optString("name", "Widget"), style = textStyle(palette.text, 13, FontWeight.Bold, palette.fontFamily), maxLines = 1)
-              Spacer(GlanceModifier.width(10.dp))
-              Text(
-                "Refresh",
-                modifier = GlanceModifier.clickable(actionStartActivity(refreshIntent)).padding(horizontal = 5.dp, vertical = 3.dp),
-                style = textStyle(palette.accent, 10, FontWeight.Bold, palette.fontFamily),
-                maxLines = 1,
+              if (!veryCompact) {
+                Box(
+                  modifier = GlanceModifier.width(4.dp).height(16.dp).background(palette.accent).cornerRadius(2.dp),
+                ) {}
+                Spacer(GlanceModifier.width(8.dp))
+                Text(spec.optString("name", "Widget"), style = textStyle(palette.text, 14, FontWeight.Medium, palette.fontFamily), maxLines = 1)
+                Spacer(GlanceModifier.width(10.dp))
+              }
+              Image(
+                provider = ImageProvider(R.drawable.wr_refresh),
+                contentDescription = "Refresh widget data",
+                colorFilter = ColorFilter.tint(androidx.glance.unit.ColorProvider(palette.accent)),
+                modifier = GlanceModifier.size(if (compact) 32.dp else 36.dp)
+                  .clickable(refreshAction)
+                  .padding(if (compact) 7.dp else 9.dp),
               )
             }
-            Spacer(GlanceModifier.height(7.dp))
+            Spacer(GlanceModifier.height(if (compact) 4.dp else 8.dp))
             val root = spec.optJSONObject("root")
             if (root != null) {
-              WidgetNodeView(root, data, images, palette, context, homeIntent, refreshIntent)
+              WidgetNodeView(root, data, images, palette, context, homeIntent, widgetId.orEmpty(), compact)
             }
-            if (payload?.optBoolean("sample", false) == true) {
+            if (!compact && payload?.optBoolean("sample", false) == true) {
               Spacer(GlanceModifier.height(5.dp))
               Text("Sample data", style = textStyle(palette.muted, 9, FontWeight.Normal, palette.fontFamily), maxLines = 1)
             }
@@ -209,15 +223,32 @@ private data class WidgetPalette(
       }
       fun parse(value: String) = Color(android.graphics.Color.parseColor(value))
       val fallback = if (dark) {
-        listOf("#17191D", "#23262C", "#F3F0EB", "#B2B0AA", "#E6A86A", "#383C43")
+        listOf("#141218", "#211F26", "#E6E1E5", "#CAC4D0", "#D0BCFF", "#938F99")
       } else {
-        listOf("#F7F4EF", "#FFFFFF", "#242321", "#6D6963", "#9B4F31", "#E6E0D8")
+        listOf("#FEF7FF", "#F7F2FA", "#1D1B20", "#49454F", "#6750A4", "#79747E")
       }
       val values = listOf("background", "surface", "text", "muted", "accent", "border").mapIndexed { index, key ->
         custom?.optString(key)?.takeIf { it.matches(Regex("^#[0-9a-fA-F]{6}$")) } ?: fallback[index]
       }.map(::parse)
       return WidgetPalette(values[0], values[1], values[2], values[3], values[4], values[5], font, fontKey)
     }
+  }
+}
+
+internal val REFRESH_WIDGET_ID_KEY = ActionParameters.Key<String>("widgetId")
+
+class RefreshWidgetAction : ActionCallback {
+  override suspend fun onAction(
+    context: Context,
+    glanceId: androidx.glance.GlanceId,
+    parameters: ActionParameters,
+  ) {
+    val widgetId = parameters[REFRESH_WIDGET_ID_KEY]
+    if (widgetId.isNullOrBlank()) {
+      Log.e(ComposerWidgetProvider.TAG, "Ignoring Glance refresh action without a widget id.")
+      return
+    }
+    WidgetRefreshWorker.enqueue(context, widgetId)
   }
 }
 
@@ -230,20 +261,21 @@ private fun WidgetNodeView(
   palette: WidgetPalette,
   context: Context,
   homeIntent: Intent,
-  refreshIntent: Intent,
+  widgetId: String,
+  compact: Boolean,
 ) {
   when (node.optString("type")) {
     "column" -> {
       val children = node.optJSONArray("children") ?: JSONArray()
       var modifier = GlanceModifier.fillMaxWidth()
       if (node.optBoolean("surface", false)) {
-        modifier = modifier.background(palette.surface).cornerRadius(node.optInt("radiusDp", 12).coerceIn(0, 24).dp)
-          .padding(node.optInt("paddingDp", 8).coerceIn(0, 24).dp)
+        modifier = modifier.background(palette.surface).cornerRadius(node.optInt("radiusDp", 16).coerceIn(0, 24).dp)
+          .padding(if (compact) node.optInt("paddingDp", 8).coerceIn(0, 12).dp else node.optInt("paddingDp", 12).coerceIn(0, 24).dp)
       }
       Column(modifier = modifier) {
         for (index in 0 until minOf(children.length(), 10)) {
-          if (index > 0) Spacer(GlanceModifier.height(node.optInt("gap", 0).coerceIn(0, 64).dp))
-          children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, refreshIntent) }
+          if (index > 0) Spacer(GlanceModifier.height(if (compact) node.optInt("gap", 0).coerceIn(0, 8).dp else node.optInt("gap", 0).coerceIn(0, 64).dp))
+          children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, widgetId, compact) }
         }
       }
     }
@@ -251,13 +283,13 @@ private fun WidgetNodeView(
       val children = node.optJSONArray("children") ?: JSONArray()
       var modifier = GlanceModifier.fillMaxWidth()
       if (node.optBoolean("surface", false)) {
-        modifier = modifier.background(palette.surface).cornerRadius(node.optInt("radiusDp", 12).coerceIn(0, 24).dp)
-          .padding(node.optInt("paddingDp", 8).coerceIn(0, 24).dp)
+        modifier = modifier.background(palette.surface).cornerRadius(node.optInt("radiusDp", 16).coerceIn(0, 24).dp)
+          .padding(if (compact) node.optInt("paddingDp", 8).coerceIn(0, 12).dp else node.optInt("paddingDp", 12).coerceIn(0, 24).dp)
       }
       Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         for (index in 0 until minOf(children.length(), 10)) {
-          if (index > 0) Spacer(GlanceModifier.width(node.optInt("gap", 0).coerceIn(0, 64).dp))
-          children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, refreshIntent) }
+          if (index > 0) Spacer(GlanceModifier.width(if (compact) node.optInt("gap", 0).coerceIn(0, 8).dp else node.optInt("gap", 0).coerceIn(0, 64).dp))
+          children.optJSONObject(index)?.let { WidgetNodeView(it, data, images, palette, context, homeIntent, widgetId, compact) }
         }
       }
     }
@@ -265,17 +297,19 @@ private fun WidgetNodeView(
       val style = node.optString("style", "body")
       val color = when (node.optString("colorToken")) { "muted" -> palette.muted; "accent" -> palette.accent; else -> if (style == "caption") palette.muted else palette.text }
       val weight = when (node.optString("weight")) { "bold" -> FontWeight.Bold; "medium" -> FontWeight.Medium; "normal" -> FontWeight.Normal; else -> if (style == "title") FontWeight.Bold else FontWeight.Normal }
-      Text(template(node.optString("text"), data), style = textStyle(color, node.optInt("fontSizeDp", if (style == "title") 17 else if (style == "caption") 10 else 14).coerceIn(10, 32), weight, palette.fontFamily), maxLines = 3)
+      val requestedSize = node.optInt("fontSizeDp", if (style == "title") 17 else if (style == "caption") 10 else 14).coerceIn(10, 32)
+      Text(template(node.optString("text"), data), style = textStyle(color, if (compact) minOf(requestedSize, 14) else requestedSize, weight, palette.fontFamily), maxLines = if (compact) 2 else 3)
     }
     "image" -> {
       val source = node.optString("source")
       val bitmap = images[source]
       if (bitmap != null) {
         val fit = if (node.optString("fit") == "contain") ContentScale.Fit else ContentScale.Crop
+        val maxImageSize = if (compact) 40 else 240
         Image(
           ImageProvider(bitmap), node.optString("alt", "Widget image"),
-          GlanceModifier.size(node.optInt("widthDp", 48).coerceIn(24, 240).dp, node.optInt("heightDp", 48).coerceIn(24, 240).dp)
-            .cornerRadius(node.optInt("radiusDp", 8).coerceIn(0, 24).dp),
+          GlanceModifier.size(node.optInt("widthDp", 48).coerceIn(24, maxImageSize).dp, node.optInt("heightDp", 48).coerceIn(24, maxImageSize).dp)
+            .cornerRadius(node.optInt("radiusDp", 12).coerceIn(0, 24).dp),
           fit,
         )
       } else {
@@ -321,15 +355,48 @@ private fun WidgetNodeView(
       val height = node.optInt("heightDp", 7).coerceIn(3, 16)
       Column {
         if (node.optString("label").isNotBlank()) Text(node.optString("label"), style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
-        Box(modifier = GlanceModifier.width(width.dp).height(height.dp).background(palette.border).cornerRadius((height / 2).coerceAtLeast(1).dp)) {
+        Box(modifier = GlanceModifier.width(width.dp).height(height.dp).background(palette.divider).cornerRadius((height / 2).coerceAtLeast(1).dp)) {
           val fill = (width * (value / max).coerceIn(0.0, 1.0)).toInt().coerceAtLeast(if (value > 0) 1 else 0)
           if (fill > 0) Box(modifier = GlanceModifier.width(fill.dp).height(height.dp).background(palette.accent).cornerRadius((height / 2).coerceAtLeast(1).dp)) {}
         }
       }
     }
+    "device_info" -> {
+      val metric = readDeviceMetric(context, node.optString("metric"))
+      val label = node.optString("label").takeIf { it.isNotBlank() } ?: metric.label
+      val display = node.optString("display").ifBlank {
+        if (node.optString("metric") == "battery_level" || node.optString("metric") == "storage_used_percent") "progress" else "text"
+      }
+      when (display) {
+        "progress" -> {
+          val progress = metric.progress ?: 0
+          val width = node.optInt("widthDp", 128).coerceIn(50, 240)
+          val height = node.optInt("heightDp", 7).coerceIn(3, 16)
+          Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(label, style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+              Text(metric.value, style = textStyle(palette.text, 10, FontWeight.Medium, palette.fontFamily), maxLines = 1)
+            }
+            Box(modifier = GlanceModifier.width(width.dp).height(height.dp).background(palette.divider).cornerRadius((height / 2).coerceAtLeast(1).dp)) {
+              val fill = (width * progress / 100.0).toInt().coerceAtLeast(if (progress > 0) 1 else 0)
+              if (fill > 0) Box(modifier = GlanceModifier.width(fill.dp).height(height.dp).background(palette.accent).cornerRadius((height / 2).coerceAtLeast(1).dp)) {}
+            }
+          }
+        }
+        "metric" -> Column {
+          Text(metric.value, style = textStyle(palette.accent, 24, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+          Text(label, style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+        }
+        else -> Row(verticalAlignment = Alignment.CenterVertically) {
+          Text(label, style = textStyle(palette.muted, 11, FontWeight.Normal, palette.fontFamily), maxLines = 1)
+          Text(metric.value, style = textStyle(palette.text, 12, FontWeight.Medium, palette.fontFamily), maxLines = 1)
+        }
+      }
+    }
     "list" -> {
       val items = data?.optJSONObject(node.optString("source"))?.optJSONArray("items") ?: JSONArray()
-      val count = minOf(items.length(), node.optInt("maxItems", 3).coerceIn(1, 5), 5)
+      val requestedCount = node.optInt("maxItems", 3).coerceIn(1, 5)
+      val count = minOf(items.length(), if (compact) 1 else requestedCount, 5)
       if (count == 0) {
         Text(if (data == null) "Loading…" else "Nothing here", style = textStyle(palette.muted, 10, FontWeight.Normal, palette.fontFamily), maxLines = 1)
       } else {
@@ -356,24 +423,46 @@ private fun WidgetNodeView(
     "button" -> {
       val label = template(node.optString("label"), data)
       val action = node.optJSONObject("action")
-      val url = if (action?.optString("type") == "open_url") safeUrl(resolve(data, action.optString("urlBinding"))) else null
-      val intent = when (action?.optString("type")) {
-        "open_url" -> url?.let(::openUrlIntent)
-        "refresh" -> refreshIntent
-        else -> homeIntent
+      val actionType = action?.optString("type")
+      val url = if (actionType == "open_url") safeUrl(resolve(data, action?.optString("urlBinding") ?: "")) else null
+      var modifier = GlanceModifier
+        .background(palette.accent)
+        .cornerRadius(20.dp)
+      modifier = when (actionType) {
+        "lock_screen" -> modifier.clickable(actionRunCallback<LockScreenAction>())
+        "refresh" -> modifier.clickable(
+          actionRunCallback<RefreshWidgetAction>(
+            actionParametersOf(REFRESH_WIDGET_ID_KEY to widgetId),
+          ),
+        )
+        "open_url" -> modifier.clickable(actionStartActivity(url?.let(::openUrlIntent) ?: homeIntent))
+        else -> modifier.clickable(actionStartActivity(homeIntent))
       }
-      val target = intent ?: homeIntent
       Box(
-        modifier = GlanceModifier
-          .background(palette.accent)
-          .cornerRadius(16.dp)
-          .clickable(actionStartActivity(target))
-          .padding(horizontal = 12.dp, vertical = 7.dp),
+        modifier = modifier
+          .height(if (compact) 40.dp else 48.dp)
+          .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
       ) {
-        Text(label, style = textStyle(palette.background, 11, FontWeight.Bold, palette.fontFamily), maxLines = 1)
+        Text(label, style = textStyle(Color(materialOnColor(palette.accent.toArgb())), 14, FontWeight.Medium, palette.fontFamily), maxLines = 1)
       }
     }
+  }
+}
+
+internal class LockScreenAction : ActionCallback {
+  override suspend fun onAction(context: Context, glanceId: androidx.glance.GlanceId, parameters: ActionParameters) {
+    val manager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+    val admin = android.content.ComponentName(context, LockScreenAdminReceiver::class.java)
+    if (manager.isAdminActive(admin)) {
+      manager.lockNow()
+      return
+    }
+
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("web2widgets://home?lockSetup=true&ts=${System.currentTimeMillis()}"))
+      .setPackage(context.packageName)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
   }
 }
 
@@ -429,6 +518,17 @@ private fun StreakChart(node: JSONObject, data: JSONObject?, palette: WidgetPale
 private fun textStyle(color: Color, size: Int, weight: FontWeight, fontFamily: FontFamily = FontFamily.SansSerif) =
   TextStyle(color = ColorProvider(color), fontSize = size.sp, fontWeight = weight, fontFamily = fontFamily)
 
+internal fun materialOnColor(color: Int): Int {
+  fun linear(channel: Int): Double {
+    val normalized = channel / 255.0
+    return if (normalized <= 0.04045) normalized / 12.92 else ((normalized + 0.055) / 1.055).pow(2.4)
+  }
+  val luminance = 0.2126 * linear(android.graphics.Color.red(color)) +
+    0.7152 * linear(android.graphics.Color.green(color)) +
+    0.0722 * linear(android.graphics.Color.blue(color))
+  return if (luminance > 0.179) android.graphics.Color.rgb(29, 27, 32) else android.graphics.Color.WHITE
+}
+
 private fun template(value: String, data: JSONObject?): String = PLACEHOLDER.replace(value) { match ->
   resolve(data, match.groupValues[1].trim()) ?: "–"
 }
@@ -448,5 +548,4 @@ private fun safeUrl(url: String?): String? = url?.takeIf {
 private fun openUrlIntent(url: String) = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
 private val PLACEHOLDER = Regex("""\{\{\s*([^{}]*?)\s*\}\}""")
-private val BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl))$""")
-
+private val BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl|summary|publishedAt|sourceName))$""")

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="wrap_content"
+  android:layout_height="wrap_content"
+  android:orientation="vertical">
+  <TextView
+    android:id="@+id/wr_progress_label"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:textSize="10sp" />
+  <FrameLayout
+    android:id="@+id/wr_progress_track"
+    android:layout_width="128dp"
+    android:layout_height="7dp"
+    android:background="#383C43">
+    <View
+      android:id="@+id/wr_progress_fill"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:background="#E6A86A" />
+  </FrameLayout>
+</LinearLayout>

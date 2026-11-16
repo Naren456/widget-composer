@@ -103,6 +103,7 @@ export function GeneratedWidgetMessage({
   text,
   spec,
   data,
+  dataError,
   sample,
   placement,
   adding,
@@ -115,6 +116,7 @@ export function GeneratedWidgetMessage({
   text: string;
   spec: WidgetSpec;
   data: WidgetDataMap | null;
+  dataError?: string;
   sample: boolean;
   placement?: PlaceOutcome;
   adding: boolean;
@@ -131,6 +133,7 @@ export function GeneratedWidgetMessage({
       <View style={styles.generatedBody}>
         <Text style={styles.assistantText}>{text}</Text>
         <SpecPreview spec={spec} data={data} sample={sample} />
+        {dataError ? <Text style={styles.dataError}>Live data could not be loaded: {dataError}</Text> : null}
         {designReview ? (
           <View style={styles.reviewCard}>
             <Text style={styles.reviewScore}>Design review · {designReview.score}/100</Text>
@@ -262,6 +265,7 @@ const styles = StyleSheet.create({
   reviewScore: { ...typography.meta, color: colors.brand, fontWeight: "700" },
   reviewText: { ...typography.meta, color: colors.textMuted, lineHeight: 18 },
   reviewError: { ...typography.meta, color: "#FF9A8F" },
+  dataError: { ...typography.meta, color: "#FF9A8F", lineHeight: 18 },
   reviewButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
   reviewButtonText: { ...typography.meta, color: colors.brand, fontWeight: "700" },
 });

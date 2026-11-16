@@ -44,3 +44,6 @@ example
 
 # Local environment (see .env.example)
 .env
+
+# Expo Simulators session config (secret token)
+.env.eas-simulator

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- No periodic updatePeriodMillis: the app pushes new data, so the widget never wakes the device on its own. -->
+<!-- Android enforces a 30-minute minimum. This refreshes local device-info values without frequent wakeups. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-  android:minWidth="180dp"
-  android:minHeight="110dp"
-  android:targetCellWidth="3"
-  android:targetCellHeight="2"
+  android:minWidth="110dp"
+  android:minHeight="70dp"
+  android:targetCellWidth="2"
+  android:targetCellHeight="1"
   android:minResizeWidth="110dp"
   android:minResizeHeight="70dp"
   android:resizeMode="horizontal|vertical"
@@ -12,4 +12,4 @@
   android:initialLayout="@layout/widget_runtime_root"
   android:previewLayout="@layout/widget_runtime_root"
   android:description="@string/widget_runtime_description"
-  android:updatePeriodMillis="0" />
+  android:updatePeriodMillis="1800000" />

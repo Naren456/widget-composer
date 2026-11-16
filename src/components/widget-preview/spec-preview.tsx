@@ -23,14 +23,23 @@ function paletteFor(theme: WidgetSpec["presentation"]["theme"], system: "light" 
   const dark = theme === "dark" || (theme === "system" && system !== "light");
   return {
     ...(dark
-      ? { background: "#17191D", surface: "#23262C", text: "#F3F0EB", muted: "#B2B0AA", accent: "#E6A86A", border: "#383C43" }
-      : { background: "#F7F4EF", surface: "#FFFFFF", text: "#242321", muted: "#6D6963", accent: "#9B4F31", border: "#E6E0D8" }),
+      ? { background: "#141218", surface: "#211F26", text: "#E6E1E5", muted: "#CAC4D0", accent: "#D0BCFF", border: "#938F99" }
+      : { background: "#FEF7FF", surface: "#F7F2FA", text: "#1D1B20", muted: "#49454F", accent: "#6750A4", border: "#79747E" }),
     ...custom,
   };
 }
 
+function onAccent(accent: string): string {
+  const channels = [1, 3, 5].map((offset) => {
+    const channel = Number.parseInt(accent.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  return luminance > 0.179 ? "#1D1B20" : "#FFFFFF";
+}
+
 function resolve(binding: string, data: WidgetDataMap | null): string | null {
-  const match = /^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl))$/.exec(binding);
+  const match = /^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl|summary|publishedAt|sourceName))$/.exec(binding);
   if (!match) return null;
   const source = data?.[match[1]];
   if (!source) return null;
@@ -72,7 +81,7 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
       return (
         <View style={[
           { flexDirection: node.type, alignItems: node.type === "row" ? "center" : undefined, gap: node.gap ?? 6 },
-          node.surface && { backgroundColor: palette.surface, borderRadius: node.radiusDp ?? 12, padding: node.paddingDp ?? 8 },
+          node.surface && { backgroundColor: palette.surface, borderRadius: node.radiusDp ?? 16, padding: node.paddingDp ?? 12 },
         ]}>
           {node.children.map((child, index) => (
             <NodePreview key={`${child.type}-${index}`} node={child} data={data} palette={palette} family={family} />
@@ -105,7 +114,7 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
       return (
         <Image
           source={{ uri: `data:${mimeType};base64,${item.imageData}` }}
-          style={{ width: node.widthDp ?? 48, height: node.heightDp ?? 48, borderRadius: node.radiusDp ?? 8 }}
+          style={{ width: node.widthDp ?? 48, height: node.heightDp ?? 48, borderRadius: node.radiusDp ?? 12 }}
           contentFit={node.fit ?? "cover"}
           accessibilityLabel={node.alt ?? item.title ?? "Widget image"}
         />
@@ -131,6 +140,17 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
           </View>
         </View>
       );
+    }
+    case "device_info": {
+      const label = node.label ?? node.metric.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+      const display = node.display ?? (node.metric === "battery_level" || node.metric === "storage_used_percent" ? "progress" : "text");
+      if (display === "metric") {
+        return <View style={styles.metric}><Text style={[styles.metricValue, fontStyle(family), { color: palette.accent }]}>Live on Android</Text><Text style={[styles.caption, fontStyle(family), { color: palette.muted }]}>{label}</Text></View>;
+      }
+      if (display === "progress") {
+        return <View style={[styles.progress, { width: 128 }]}><Text style={[styles.caption, fontStyle(family), { color: palette.muted }]}>{label} · Live on Android</Text><View style={[styles.progressTrack, { height: 7, backgroundColor: palette.border, borderRadius: 4 }]} /></View>;
+      }
+      return <Text style={[styles.text, fontStyle(family), { color: palette.text }]}>{label} · Live on Android</Text>;
     }
     case "list": {
       const items = data?.[node.source]?.items.slice(0, node.maxItems) ?? [];
@@ -180,7 +200,11 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
     case "spacer":
       return <View style={{ height: Math.min(node.sizeDp, 32) }} />;
     case "button":
-      return <Text style={[styles.buttonLabel, fontStyle(family), { color: palette.accent }]}>{template(node.label, data)}</Text>;
+      return (
+        <View style={[styles.button, { backgroundColor: palette.accent, borderRadius: 20 }]}>
+          <Text style={[styles.buttonLabel, fontStyle(family), { color: onAccent(palette.accent) }]}>{template(node.label, data)}</Text>
+        </View>
+      );
     case "link":
       return <Text style={[styles.linkLabel, fontStyle(family), { color: palette.accent }]}>{node.label}</Text>;
   }
@@ -207,21 +231,21 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
-    gap: 10,
+    borderRadius: 24,
+    padding: 16,
+    gap: 12,
   },
-  header: { flexDirection: "row", alignItems: "center", gap: 8 },
-  accentMark: { width: 3, height: 16, borderRadius: 2 },
-  name: { fontSize: 13, fontWeight: "700", letterSpacing: 0.15 },
-  text: { fontSize: 14, lineHeight: 19 },
-  title: { fontSize: 17, lineHeight: 22, fontWeight: "700" },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
+  accentMark: { width: 4, height: 16, borderRadius: 2 },
+  name: { fontSize: 14, fontWeight: "600", letterSpacing: 0.1 },
+  text: { fontSize: 14, lineHeight: 20 },
+  title: { fontSize: 18, lineHeight: 24, fontWeight: "700" },
   clockTime: { fontSize: 30, lineHeight: 35, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  caption: { fontSize: 10, lineHeight: 14 },
+  caption: { fontSize: 12, lineHeight: 16 },
   metric: { gap: 2 },
   metricValue: { fontSize: 26, lineHeight: 31, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  list: { gap: 4 },
-  listItem: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6, gap: 2 },
+  list: { gap: 8 },
+  listItem: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 4 },
   streakChart: { gap: 7 },
   streakStats: { gap: 1 },
   streakValue: { fontSize: 22, lineHeight: 27, fontWeight: "700", fontVariant: ["tabular-nums"] },
@@ -229,11 +253,12 @@ const styles = StyleSheet.create({
   streakRow: { flexDirection: "row", gap: 3 },
   streakCell: { width: 10, height: 10, borderRadius: 3 },
   itemTitle: { fontWeight: "600" },
-  image: { width: 48, height: 48, borderRadius: 8 },
+  image: { width: 48, height: 48, borderRadius: 12 },
+  button: { alignSelf: "flex-start", minHeight: 48, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 10 },
   progress: { gap: 4 },
   progressTrack: { width: "100%", overflow: "hidden" },
   divider: { height: StyleSheet.hairlineWidth, width: "100%" },
-  buttonLabel: { fontSize: 13, fontWeight: "700" },
+  buttonLabel: { fontSize: 14, fontWeight: "600" },
   linkLabel: { fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
   sample: { fontSize: 10, lineHeight: 14 },
 });

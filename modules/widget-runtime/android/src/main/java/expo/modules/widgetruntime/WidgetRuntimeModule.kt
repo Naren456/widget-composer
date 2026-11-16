@@ -2,6 +2,8 @@ package expo.modules.widgetruntime
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -33,6 +35,22 @@ class WidgetRuntimeModule : Module() {
       ComposerWidgetProvider.updateAll(context)
     }
 
+    Function("setBackgroundRefreshCredentials") { apiBaseUrl: String, userId: String, accessToken: String, refreshToken: String ->
+      require(apiBaseUrl.startsWith("https://") || apiBaseUrl.startsWith("http://")) { "API URL must use HTTP or HTTPS." }
+      require(userId.isNotBlank() && accessToken.isNotBlank() && refreshToken.isNotBlank()) { "Background refresh credentials are incomplete." }
+      WidgetStore(context).saveBackgroundRefreshCredentials(apiBaseUrl, userId, accessToken, refreshToken)
+    }
+
+    Function("backgroundRefreshSession") {
+      WidgetStore(context).backgroundRefreshSession()?.let { session ->
+        mapOf("userId" to session.userId, "refreshToken" to session.refreshToken)
+      }
+    }
+
+    Function("clearBackgroundRefreshCredentials") {
+      WidgetStore(context).clearBackgroundRefreshCredentials()
+    }
+
     /** Opens the launcher's "Add widget" prompt for `widgetId`. False when the launcher can't. */
     Function("requestPin") { widgetId: String ->
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@Function false
@@ -52,6 +70,41 @@ class WidgetRuntimeModule : Module() {
     /** Ids of saved widgets that are on the home screen now. */
     Function("placedWidgetIds") {
       WidgetStore(context).placedWidgetIds(ComposerWidgetProvider.placedIds(context))
+    }
+
+    /** Stable random installation ID used to reconcile placements with the API. */
+    Function("deviceId") {
+      WidgetStore(context).deviceId()
+    }
+
+    /** Current native app-widget IDs and their saved WidgetComposer widget IDs. */
+    Function("placedInstances") {
+      WidgetStore(context).placedInstances(ComposerWidgetProvider.placedIds(context))
+    }
+
+    /** Pending removals survive process death and offline periods until acknowledged. */
+    Function("pendingRemovals") {
+      WidgetStore(context).pendingRemovals()
+    }
+
+    Function("acknowledgeRemoval") { platformWidgetId: Int ->
+      WidgetStore(context).acknowledgeRemoval(platformWidgetId)
+    }
+
+    /** Opens the Android-owned screen where the user may approve device-admin access. */
+    Function("requestLockScreenAdmin") {
+      val manager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+      val admin = ComponentName(context, LockScreenAdminReceiver::class.java)
+      if (manager.isAdminActive(admin)) return@Function true
+      val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+        .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+        .putExtra(
+          DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+          "WidgetComposer uses this permission only when you tap the Lock screen widget action. It cannot erase device data.",
+        )
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      true
     }
   }
 }

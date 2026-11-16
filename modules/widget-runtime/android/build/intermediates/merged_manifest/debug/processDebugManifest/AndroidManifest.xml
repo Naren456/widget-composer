@@ -5,7 +5,23 @@
     <uses-sdk android:minSdkVersion="24" />
 
     <application>
+        <receiver
+            android:name="expo.modules.widgetruntime.LockScreenAdminReceiver"
+            android:description="@string/widget_runtime_lock_admin_description"
+            android:exported="true"
+            android:label="@string/widget_runtime_lock_admin_label"
+            android:permission="android.permission.BIND_DEVICE_ADMIN" >
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/widget_runtime_device_admin" />
 
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="expo.modules.widgetruntime.LockScreenActionReceiver"
+            android:exported="false" />
         <!-- Glance renders WidgetSpec v1-v3 as adaptive Android home-screen widgets. -->
         <receiver
             android:name="expo.modules.widgetruntime.ComposerWidgetProvider"

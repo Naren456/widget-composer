@@ -1,6 +1,10 @@
 import Constants from "expo-constants";
 
 import { clearSession, loadSession, saveSession } from "@/features/session/session-store";
+import { homeScreenWidgets } from "../../modules/widget-runtime";
+import type { WidgetSpec } from "./widget-contract.generated";
+
+export type { WidgetAction, WidgetNode, WidgetPalette, WidgetSpec } from "./widget-contract.generated";
 
 /**
  * Client for the WidgetComposer API (the Express backend in
@@ -16,7 +20,7 @@ import { clearSession, loadSession, saveSession } from "@/features/session/sessi
 
 const TIMEOUT_MS = 20_000;
 /** Generation runs a model and can repair its output, so it gets far longer. */
-const GENERATE_TIMEOUT_MS = 120_000;
+const GENERATE_TIMEOUT_MS = 180_000;
 const DEV_API_PORT = 3000;
 
 export function apiBaseUrl(): string | null {
@@ -43,6 +47,11 @@ let accessToken: string | null = null;
 
 type SessionResponse = { accessToken: string; refreshToken: string; userId: string };
 
+function saveRefreshCredentials(baseUrl: string | null, session: SessionResponse): void {
+  if (!baseUrl || !homeScreenWidgets) return;
+  homeScreenWidgets.setBackgroundRefreshCredentials(baseUrl, session.userId, session.accessToken, session.refreshToken);
+}
+
 async function send(path: string, init: { method: string; body?: unknown; token?: string | null; timeoutMs?: number }) {
   const base = apiBaseUrl();
   if (!base) return { error: failure("UNCONFIGURED", "The WidgetComposer API address isn't set (EXPO_PUBLIC_API_URL).") };
@@ -58,8 +67,11 @@ async function send(path: string, init: { method: string; body?: unknown; token?
     });
     const body = await response.json().catch(() => null);
     return { response, body };
-  } catch {
-    return { error: failure("UNREACHABLE", `Couldn't reach the WidgetComposer API at ${base}.`) };
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return { error: failure("API_TIMEOUT", `The WidgetComposer API at ${base} didn't respond in time. Check that the backend is running.`) };
+    }
+    return { error: failure("UNREACHABLE", `Couldn't reach the WidgetComposer API at ${base}. Make sure the backend is running and this device is on the same Wi-Fi network.`) };
   }
 }
 
@@ -75,7 +87,9 @@ function asFailure(status: number, body: unknown): ApiFailure {
 
 /** Ensures there is an access token: refresh the stored session, or create a new account. */
 async function authenticate(): Promise<ApiFailure | null> {
-  const stored = loadSession();
+  const backgroundSession = homeScreenWidgets?.backgroundRefreshSession();
+  const stored = backgroundSession ?? loadSession();
+  if (backgroundSession) saveSession(backgroundSession);
   if (stored) {
     const r = await send("/v1/auth/refresh", { method: "POST", body: { refreshToken: stored.refreshToken } });
     if ("error" in r) return r.error ?? null;
@@ -83,11 +97,13 @@ async function authenticate(): Promise<ApiFailure | null> {
       const s = r.body as SessionResponse;
       accessToken = s.accessToken;
       saveSession({ userId: s.userId, refreshToken: s.refreshToken });
+      saveRefreshCredentials(apiBaseUrl(), s);
       return null;
     }
     if (r.response.status !== 401) return asFailure(r.response.status, r.body);
     // The session is gone (expired or revoked): fall through to a fresh account.
     clearSession();
+    homeScreenWidgets?.clearBackgroundRefreshCredentials();
   }
   const r = await send("/v1/auth/device", { method: "POST" });
   if ("error" in r) return r.error ?? null;
@@ -95,6 +111,7 @@ async function authenticate(): Promise<ApiFailure | null> {
   const s = r.body as SessionResponse;
   accessToken = s.accessToken;
   saveSession({ userId: s.userId, refreshToken: s.refreshToken });
+  saveRefreshCredentials(apiBaseUrl(), s);
   return null;
 }
 
@@ -117,28 +134,6 @@ async function call<T>(path: string, init: { method: string; body?: unknown; tim
   return failure("UNAUTHENTICATED", "Couldn't sign in to the WidgetComposer API.");
 }
 
-/** Versioned WidgetSpec returned by the backend and consumed by both widget renderers. */
-export type WidgetAction =
-  | { type: "open_url"; urlBinding: string }
-  | { type: "open_app"; screen: "widget_details" }
-  | { type: "refresh" };
-
-export type WidgetPalette = { background: string; surface: string; text: string; muted: string; accent: string; border: string };
-
-export type WidgetNode =
-  | { type: "column" | "row"; gap?: number; surface?: boolean; radiusDp?: number; paddingDp?: number; children: WidgetNode[] }
-  | { type: "text"; text: string; style?: "title" | "body" | "caption"; fontSizeDp?: number; weight?: "normal" | "medium" | "bold"; colorToken?: "text" | "muted" | "accent" }
-  | { type: "image"; source: string; alt?: string; widthDp?: number; heightDp?: number; fit?: "cover" | "contain"; radiusDp?: number }
-  | { type: "link"; label: string; urlBinding: string }
-  | { type: "clock"; format: "12_hour" | "24_hour"; showDate?: boolean; showSeconds?: boolean }
-  | { type: "metric"; label: string; valueBinding: string }
-  | { type: "progress"; label?: string; valueBinding: string; maxValue: number; widthDp?: number; heightDp?: number }
-  | { type: "list"; source: string; maxItems: number }
-  | { type: "streak_chart"; source: string }
-  | { type: "divider" }
-  | { type: "spacer"; sizeDp: number }
-  | { type: "button"; label: string; action: WidgetAction };
-
 export type WidgetDataItem = {
   title?: string;
   url?: string;
@@ -149,6 +144,9 @@ export type WidgetDataItem = {
   imageUrl?: string;
   imageData?: string;
   imageMimeType?: string;
+  summary?: string;
+  publishedAt?: string;
+  sourceName?: string;
 };
 
 export type GitHubContributionDay = { date: string; count: number; level: number };
@@ -173,21 +171,6 @@ export type WidgetDataSource = {
 };
 export type WidgetDataMap = Record<string, WidgetDataSource>;
 
-export type WidgetSpec = {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6;
-  name: string;
-  presentation: {
-    theme: "light" | "dark" | "system";
-    fontFamily?: "sans" | "serif" | "monospace";
-    palette?: WidgetPalette;
-    refreshMinutes: number;
-    minWidthDp?: number;
-    minHeightDp?: number;
-  };
-  dataSources: ({ id: string; connector: "github"; query: string } | { id: string; connector: "website"; query: "page"; url: string })[];
-  root: WidgetNode;
-};
-
 export type WidgetReferenceImage = { mediaType: "image/jpeg" | "image/png" | "image/webp"; base64: string };
 
 export function generateWidget(prompt: string, widgetId?: string, image?: WidgetReferenceImage): Promise<ApiResult<{ spec: WidgetSpec; generationRunId: string }>> {
@@ -206,10 +189,14 @@ export function validateWidgetDesign(spec: WidgetSpec): Promise<ApiResult<{ vali
 }
 
 export type WidgetComponent = { type: string; description: string; properties: string[] };
+export type WidgetDataProvider = { id: string; kind: string; description: string; queries?: string[]; metrics?: string[] };
 
 /** The same allowlisted component registry used by generation and spec validation. */
 export function getWidgetComponents(): Promise<ApiResult<{
+  schemaVersion: number;
+  supportedSchemaVersions: number[];
   components: WidgetComponent[];
+  providers: WidgetDataProvider[];
   sizes: ("small" | "medium" | "large")[];
   themes: ("light" | "dark" | "system")[];
   fontFamilies: ("sans" | "serif" | "monospace")[];
@@ -219,6 +206,13 @@ export function getWidgetComponents(): Promise<ApiResult<{
 }
 
 export type SavedWidget = { id: string; name: string; latestVersion: { spec: WidgetSpec } | null };
+export type WidgetInstance = {
+  id: string;
+  deviceId: string;
+  platformWidgetId: number;
+  renderer: string;
+  createdAt: string;
+};
 export type ConnectedAccount = {
   id: string;
   provider: "github";
@@ -263,4 +257,19 @@ export function previewData(spec: WidgetSpec): Promise<ApiResult<{ data: WidgetD
 export function widgetData(widgetId: string, options: { refresh?: boolean } = {}): Promise<ApiResult<{ data: WidgetDataMap | null; lastError: string | null }>> {
   const query = options.refresh ? "?refresh=true" : "";
   return call(`/v1/widgets/${widgetId}/data${query}`, { method: "GET" });
+}
+
+export function registerWidgetInstance(
+  widgetId: string,
+  input: { deviceId: string; platformWidgetId: number; renderer: string },
+): Promise<ApiResult<WidgetInstance>> {
+  return call(`/v1/widgets/${encodeURIComponent(widgetId)}/instances`, { method: "POST", body: input });
+}
+
+/** Removes a placement by its stable installation and platform IDs; repeated calls are safe. */
+export function removeWidgetInstance(
+  widgetId: string,
+  input: { deviceId: string; platformWidgetId: number },
+): Promise<ApiResult<void>> {
+  return call(`/v1/widgets/${encodeURIComponent(widgetId)}/instances`, { method: "DELETE", body: input });
 }

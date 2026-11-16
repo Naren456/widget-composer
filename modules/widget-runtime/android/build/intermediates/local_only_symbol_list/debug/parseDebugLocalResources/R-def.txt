@@ -3,6 +3,7 @@ local
 drawable wr_bg_dark
 drawable wr_bg_light
 drawable wr_button_bg
+drawable wr_refresh
 id wr_button
 id wr_clock_date
 id wr_clock_time
@@ -16,6 +17,10 @@ id wr_item_meta
 id wr_item_title
 id wr_metric_label
 id wr_metric_value
+id wr_progress_fill
+id wr_progress_label
+id wr_progress_track
+id wr_refresh
 id wr_root
 id wr_streak_cell
 id wr_text
@@ -27,8 +32,11 @@ layout wr_clock_serif
 layout wr_column
 layout wr_divider
 layout wr_image
+layout wr_image_contain
 layout wr_list_item
 layout wr_metric
+layout wr_progress
+layout wr_refresh
 layout wr_row
 layout wr_spacer_16
 layout wr_spacer_32
@@ -37,8 +45,12 @@ layout wr_spacer_8
 layout wr_streak_cell
 layout wr_text_body
 layout wr_text_caption
+layout wr_text_medium
 layout wr_text_title
 string widget_runtime_description
 string widget_runtime_empty
 string widget_runtime_label
+string widget_runtime_lock_admin_description
+string widget_runtime_lock_admin_label
+xml widget_runtime_device_admin
 xml widget_runtime_info

@@ -7,31 +7,62 @@
 5-->INJECTED
 6
 7    <application>
-7-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-15:17
-8
-9        <!-- Glance renders WidgetSpec v1-v3 as adaptive Android home-screen widgets. -->
-10        <receiver
-10-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:4:5-14:16
-11            android:name="expo.modules.widgetruntime.ComposerWidgetProvider"
-11-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:5:7-71
-12            android:exported="true"
-12-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:6:7-30
-13            android:label="@string/widget_runtime_label" >
-13-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:7:7-51
-14            <intent-filter>
-14-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:8:7-10:23
-15                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-15-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:9-76
-15-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:17-73
-16            </intent-filter>
+7-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-31:17
+8        <receiver
+8-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:3:5-15:16
+9            android:name="expo.modules.widgetruntime.LockScreenAdminReceiver"
+9-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:4:7-72
+10            android:description="@string/widget_runtime_lock_admin_description"
+10-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:5:7-74
+11            android:exported="true"
+11-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:6:7-30
+12            android:label="@string/widget_runtime_lock_admin_label"
+12-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:7:7-62
+13            android:permission="android.permission.BIND_DEVICE_ADMIN" >
+13-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:8:7-64
+14            <meta-data
+14-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:9:7-11:63
+15                android:name="android.app.device_admin"
+15-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:10:9-48
+16                android:resource="@xml/widget_runtime_device_admin" />
+16-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:11:9-60
 17
-18            <meta-data
-18-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:11:7-13:55
-19                android:name="android.appwidget.provider"
-19-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:12:9-50
-20                android:resource="@xml/widget_runtime_info" />
-20-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:13:9-52
+18            <intent-filter>
+18-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:12:7-14:23
+19                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+19-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:13:9-74
+19-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:13:17-71
+20            </intent-filter>
 21        </receiver>
-22    </application>
-23
-24</manifest>
+22        <receiver
+22-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:16:5-18:34
+23            android:name="expo.modules.widgetruntime.LockScreenActionReceiver"
+23-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:17:7-73
+24            android:exported="false" />
+24-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:18:7-31
+25        <!-- Glance renders WidgetSpec v1-v3 as adaptive Android home-screen widgets. -->
+26        <receiver
+26-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:20:5-30:16
+27            android:name="expo.modules.widgetruntime.ComposerWidgetProvider"
+27-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:21:7-71
+28            android:exported="true"
+28-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:22:7-30
+29            android:label="@string/widget_runtime_label" >
+29-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:23:7-51
+30            <intent-filter>
+30-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:24:7-26:23
+31                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+31-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:9-76
+31-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:17-73
+32            </intent-filter>
+33
+34            <meta-data
+34-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:27:7-29:55
+35                android:name="android.appwidget.provider"
+35-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:28:9-50
+36                android:resource="@xml/widget_runtime_info" />
+36-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
+37        </receiver>
+38    </application>
+39
+40</manifest>

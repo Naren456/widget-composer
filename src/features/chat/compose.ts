@@ -14,6 +14,7 @@ export type ChatMessage =
       spec?: WidgetSpec;
       widgetId?: string;
       data?: WidgetDataMap | null;
+      dataError?: string;
       sample?: boolean;
       generationRunId?: string;
       designReview?: DesignReview;

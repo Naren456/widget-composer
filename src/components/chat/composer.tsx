@@ -21,7 +21,7 @@ type Props = {
   busy?: boolean;
 };
 
-const MAX_LENGTH = 500;
+const MAX_LENGTH = 4_000;
 const MAX_IMAGE_BASE64_CHARS = 4_500_000;
 export type ReferenceImage = { uri: string; base64: string; mediaType: "image/jpeg" };
 

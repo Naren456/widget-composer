@@ -3,11 +3,17 @@ package expo.modules.widgetruntime
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Build
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RectF
 import android.net.Uri
 import android.util.Base64
 import android.util.TypedValue
@@ -46,10 +52,15 @@ internal class WidgetRenderer(
     root.setInt(R.id.wr_root, "setBackgroundColor", palette.background)
     root.setViewVisibility(R.id.wr_empty, View.GONE)
     root.removeAllViews(R.id.wr_content)
-    root.addView(R.id.wr_content, RemoteViews(pkg, R.layout.wr_text_caption).apply {
-      setTextViewText(R.id.wr_text, "Refresh")
-      setTextColor(R.id.wr_text, palette.accent)
-      setOnClickPendingIntent(R.id.wr_text, openApp(refresh = true))
+    if (spec.optInt("schemaVersion") !in WidgetContract.SUPPORTED_SCHEMA_VERSIONS) {
+      root.setViewVisibility(R.id.wr_empty, View.VISIBLE)
+      root.setTextViewText(R.id.wr_empty, "Update WidgetComposer to view this widget.")
+      root.setViewVisibility(R.id.wr_content, View.GONE)
+      return root
+    }
+    root.addView(R.id.wr_content, RemoteViews(pkg, R.layout.wr_refresh).apply {
+      setInt(R.id.wr_refresh, "setColorFilter", palette.accent)
+      setOnClickPendingIntent(R.id.wr_refresh, refreshWidget())
     })
     root.addView(R.id.wr_content, node(spec.getJSONObject("root"), inRow = false))
     if (sample) {
@@ -60,10 +71,16 @@ internal class WidgetRenderer(
     return root
   }
 
+  private fun lockScreenAction(): PendingIntent {
+    val intent = Intent(context, LockScreenActionReceiver::class.java)
+      .setAction(LockScreenActionReceiver.ACTION_LOCK_SCREEN)
+    return PendingIntent.getBroadcast(context, requestCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+  }
+
   private fun node(node: JSONObject, inRow: Boolean): RemoteViews =
     when (node.optString("type")) {
       "column", "row" -> container(node)
-      "text" -> text(template(node.optString("text")), node.optString("style", "body")).apply {
+      "text" -> text(template(node.optString("text")), if (node.optString("weight") == "bold") "title" else node.optString("style", "body"), node.optString("weight")).apply {
         val defaultSize = when (node.optString("style", "body")) { "title" -> 17; "caption" -> 10; else -> 14 }
         setTextViewTextSize(R.id.wr_text, TypedValue.COMPLEX_UNIT_SP, node.optInt("fontSizeDp", defaultSize).coerceIn(10, 32).toFloat())
         setTextColor(R.id.wr_text, when (node.optString("colorToken")) { "accent" -> palette.accent; "muted" -> palette.muted; else -> palette.text })
@@ -73,6 +90,7 @@ internal class WidgetRenderer(
       "clock" -> clock(node)
       "metric" -> metric(node)
       "progress" -> progress(node)
+      "device_info" -> deviceInfo(node)
       "list" -> list(node)
       "streak_chart" -> streakChart(node)
       "divider" -> RemoteViews(pkg, R.layout.wr_divider).apply { setInt(R.id.wr_divider, "setBackgroundColor", palette.divider) }
@@ -99,10 +117,11 @@ internal class WidgetRenderer(
     return views
   }
 
-  private fun text(value: String, style: String): RemoteViews {
-    val layout = when (style) {
-      "title" -> R.layout.wr_text_title
-      "caption" -> R.layout.wr_text_caption
+  private fun text(value: String, style: String, weight: String = "normal"): RemoteViews {
+    val layout = when {
+      weight == "medium" -> R.layout.wr_text_medium
+      style == "title" -> R.layout.wr_text_title
+      style == "caption" -> R.layout.wr_text_caption
       else -> R.layout.wr_text_body
     }
     return RemoteViews(pkg, layout).apply {
@@ -118,6 +137,61 @@ internal class WidgetRenderer(
     setTextColor(R.id.wr_metric_label, palette.muted)
   }
 
+  private fun progress(node: JSONObject): RemoteViews {
+    val value = resolve(node.optString("valueBinding"))?.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
+    val max = node.optInt("maxValue", 100).coerceAtLeast(1)
+    val width = node.optInt("widthDp", 128).coerceIn(50, 240)
+    val height = node.optInt("heightDp", 7).coerceIn(3, 16)
+    val label = node.optString("label")
+    return RemoteViews(pkg, R.layout.wr_progress).apply {
+      setTextViewText(R.id.wr_progress_label, label)
+      setTextColor(R.id.wr_progress_label, palette.muted)
+      setViewVisibility(R.id.wr_progress_label, if (label.isBlank()) View.GONE else View.VISIBLE)
+      setInt(R.id.wr_progress_track, "setBackgroundColor", palette.divider)
+      setInt(R.id.wr_progress_fill, "setBackgroundColor", palette.accent)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        setViewLayoutWidth(R.id.wr_progress_track, width.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+        setViewLayoutHeight(R.id.wr_progress_track, height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+        setViewLayoutWidth(R.id.wr_progress_fill, (width * (value / max).coerceIn(0.0, 1.0)).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+        setViewLayoutHeight(R.id.wr_progress_fill, height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+      }
+    }
+  }
+
+  private fun deviceInfo(node: JSONObject): RemoteViews {
+    val metric = readDeviceMetric(context, node.optString("metric"))
+    val label = node.optString("label").ifBlank { metric.label }
+    val display = node.optString("display").ifBlank {
+      if (node.optString("metric") == "battery_level" || node.optString("metric") == "storage_used_percent") "progress" else "text"
+    }
+    return when (display) {
+      "progress" -> {
+        val views = RemoteViews(pkg, R.layout.wr_progress)
+        val width = node.optInt("widthDp", 128).coerceIn(50, 240)
+        val height = node.optInt("heightDp", 7).coerceIn(3, 16)
+        val progress = metric.progress ?: 0
+        views.setTextViewText(R.id.wr_progress_label, "$label · ${metric.value}")
+        views.setTextColor(R.id.wr_progress_label, palette.text)
+        views.setInt(R.id.wr_progress_track, "setBackgroundColor", palette.divider)
+        views.setInt(R.id.wr_progress_fill, "setBackgroundColor", palette.accent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          views.setViewLayoutWidth(R.id.wr_progress_track, width.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+          views.setViewLayoutHeight(R.id.wr_progress_track, height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+          views.setViewLayoutWidth(R.id.wr_progress_fill, (width * (progress / 100.0)).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+          views.setViewLayoutHeight(R.id.wr_progress_fill, height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+        }
+        views
+      }
+      "metric" -> RemoteViews(pkg, R.layout.wr_metric).apply {
+        setTextViewText(R.id.wr_metric_value, metric.value)
+        setTextColor(R.id.wr_metric_value, palette.accent)
+        setTextViewText(R.id.wr_metric_label, label)
+        setTextColor(R.id.wr_metric_label, palette.muted)
+      }
+      else -> text("$label  ${metric.value}", "body").apply { setTextColor(R.id.wr_text, palette.text) }
+    }
+  }
+
   private fun image(node: JSONObject): RemoteViews {
     val source = node.optString("source")
     val item = if (ASSET_BINDING.matches(source)) {
@@ -131,14 +205,28 @@ internal class WidgetRenderer(
     val encoded = item.optString("imageData").takeIf { it.isNotBlank() }
       ?: return text(node.optString("alt", "Image unavailable"), "caption")
     val bitmap = decodeImage(encoded) ?: return text(node.optString("alt", "Image unavailable"), "caption")
+    val radius = node.optInt("radiusDp", 8).coerceIn(0, 24)
+    val renderedBitmap = if (radius > 0) roundImage(bitmap, radius, node.optInt("widthDp", 48).coerceIn(24, 240)) else bitmap
     return RemoteViews(pkg, if (node.optString("fit") == "contain") R.layout.wr_image_contain else R.layout.wr_image).apply {
-      setImageViewBitmap(R.id.wr_image, bitmap)
+      setImageViewBitmap(R.id.wr_image, renderedBitmap)
       setContentDescription(R.id.wr_image, node.optString("alt", item.optString("title", "Widget image")))
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         setViewLayoutWidth(R.id.wr_image, node.optInt("widthDp", 48).coerceIn(24, 240).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
         setViewLayoutHeight(R.id.wr_image, node.optInt("heightDp", 48).coerceIn(24, 240).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
       }
     }
+  }
+
+  private fun roundImage(bitmap: Bitmap, radiusDp: Int, widthDp: Int): Bitmap {
+    val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(output)
+    val radius = (radiusDp.toFloat() * bitmap.width / widthDp).coerceAtMost(bitmap.width / 2f)
+    val mask = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+    canvas.drawRoundRect(RectF(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat()), radius, radius, mask)
+    val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
+    canvas.drawBitmap(bitmap, 0f, 0f, imagePaint)
+    imagePaint.xfermode = null
+    return output
   }
 
   private fun link(node: JSONObject): RemoteViews {
@@ -244,12 +332,18 @@ internal class WidgetRenderer(
 
   private fun button(node: JSONObject) = RemoteViews(pkg, R.layout.wr_button).apply {
     setTextViewText(R.id.wr_button, template(node.optString("label")))
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      setTextColor(R.id.wr_button, materialOnColor(palette.accent))
+      setColorStateList(R.id.wr_button, "setBackgroundTintList", ColorStateList.valueOf(palette.accent))
+    } else {
+      setTextColor(R.id.wr_button, materialOnColor(Color.parseColor("#6750A4")))
+    }
     val action = node.optJSONObject("action")
     val intent = when (action?.optString("type")) {
       "open_url" -> safeUrl(resolve(action.optString("urlBinding")))?.let { openUrl(it) }
-      // Data is refreshed by the app, so both open it.
       "open_app" -> openApp()
-      "refresh" -> openApp(refresh = true)
+      "refresh" -> refreshWidget()
+      "lock_screen" -> lockScreenAction()
       else -> null
     }
     intent?.let { setOnClickPendingIntent(R.id.wr_button, it) }
@@ -287,25 +381,34 @@ internal class WidgetRenderer(
     return PendingIntent.getActivity(context, requestCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
 
-  private fun openApp(refresh: Boolean = false): PendingIntent {
-    val query = if (refresh) "widget=$widgetId&refresh=true&ts=${System.currentTimeMillis()}" else "widget=$widgetId"
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$SCHEME://home?$query"))
+  private fun openApp(): PendingIntent {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$SCHEME://home?widget=$widgetId"))
       .setPackage(pkg)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     return PendingIntent.getActivity(context, requestCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
 
+  private fun refreshWidget(): PendingIntent {
+    val intent = Intent(context, ComposerWidgetProvider::class.java)
+      .setAction(ComposerWidgetProvider.ACTION_REFRESH)
+      .putExtra(ComposerWidgetProvider.EXTRA_WIDGET_ID, widgetId)
+    return PendingIntent.getBroadcast(context, requestCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+  }
+
   /** Request codes must differ per click target, or Android merges the PendingIntents. */
   private fun requestCode() = appWidgetId * 1000 + nextRequestCode++
 
-  private fun paletteFor(theme: String, fontFamily: String): Palette {
+  private fun paletteFor(theme: String, fontFamily: String, custom: JSONObject?): Palette {
     val night = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     val dark = theme == "dark" || (theme == "system" && night)
-    return if (dark) {
-      Palette(R.drawable.wr_bg_dark, Color.parseColor("#FFFFFF"), Color.parseColor("#9AA39C"), Color.parseColor("#A6EF5C"), Color.parseColor("#2A2F2C"), clockLayout(fontFamily))
-    } else {
-      Palette(R.drawable.wr_bg_light, Color.parseColor("#111A14"), Color.parseColor("#5B665F"), Color.parseColor("#3C8C1E"), Color.parseColor("#E2E6E3"), clockLayout(fontFamily))
+    val defaults = if (dark) listOf("#141218", "#211F26", "#E6E1E5", "#CAC4D0", "#D0BCFF", "#938F99")
+      else listOf("#FEF7FF", "#F7F2FA", "#1D1B20", "#49454F", "#6750A4", "#79747E")
+    fun value(key: String, index: Int): Int {
+      val candidate = custom?.optString(key)
+      val hex = candidate?.takeIf { it.matches(Regex("^#[0-9a-fA-F]{6}$")) } ?: defaults[index]
+      return Color.parseColor(hex)
     }
+    return Palette(value("background", 0), value("surface", 1), value("text", 2), value("muted", 3), value("accent", 4), value("border", 5), clockLayout(fontFamily))
   }
 
   private fun clockLayout(fontFamily: String) = when (fontFamily) {
@@ -314,12 +417,13 @@ internal class WidgetRenderer(
     else -> R.layout.wr_clock
   }
 
-  private data class Palette(val background: Int, val text: Int, val muted: Int, val accent: Int, val divider: Int, val clockLayout: Int)
+  private data class Palette(val background: Int, val surface: Int, val text: Int, val muted: Int, val accent: Int, val divider: Int, val clockLayout: Int)
 
   private companion object {
     const val MISSING = "–"
     const val SCHEME = "web2widgets"
     val PLACEHOLDER = Regex("""\{\{\s*([^{}]*?)\s*\}\}""")
-    val BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl))$""")
+    val BINDING = Regex("""^([a-z][a-z0-9_]{0,23})\.(?:count|items\[(\d{1,2})\]\.(title|url|repo|number|author|updatedAt|imageUrl|summary|publishedAt|sourceName))$""")
+    val ASSET_BINDING = Regex("""^asset_[0-9a-f-]{36}$""", RegexOption.IGNORE_CASE)
   }
 }

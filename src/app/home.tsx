@@ -3,9 +3,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { type ComponentRef, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   AppState,
   BackHandler,
   KeyboardAvoidingView,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,50 +24,8 @@ import { type ChatMessage, messageId, parseRequest } from "@/features/chat/compo
 import { addToHomeScreen, refreshPlacedWidgets, syncPlacedWidget } from "@/features/home-screen/home-screen-widgets";
 import { generateWidget, previewData, saveWidget, saveWidgetVersion, validateWidgetDesign, type WidgetSpec } from "@/services/widget-api";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-
-/** Starter prompts in the ChatGPT pattern. Tapping one fills the composer, it never sends. */
-const suggestions = [
-  {
-    title: "Assigned issues",
-    body: "your GitHub issues",
-    prompt: "Show my assigned GitHub issues in a compact list",
-  },
-  {
-    title: "Open pull requests",
-    body: "across your repositories",
-    prompt: "Show my open GitHub pull requests in a compact list",
-  },
-  {
-    title: "Review requests",
-    body: "waiting for you",
-    prompt: "Show GitHub pull requests waiting for my review",
-  },
-  {
-    title: "Issue count",
-    body: "assigned to you",
-    prompt: "Show a count of my assigned GitHub issues with a short list of the latest ones",
-  },
-  {
-    title: "Local clock",
-    body: "time and date",
-    prompt: "Create a clean 24-hour clock widget with the current local time and date",
-  },
-  {
-    title: "Website widget",
-    body: "page title and headings",
-    prompt: "Turn https://news.ycombinator.com into a compact widget showing the page title and top headings",
-  },
-  {
-    title: "YouTube channel",
-    body: "channel title and description",
-    prompt: "Create a compact widget for https://www.youtube.com/@YouTube showing the channel title and description with a button to open the channel",
-  },
-  {
-    title: "XDA Developers",
-    body: "latest page headlines",
-    prompt: "Turn https://www.xda-developers.com/ into a compact widget showing the page title and top article headings",
-  },
-];
+import { suggestions } from "@/features/chat/presets";
+import { homeScreenWidgets } from "../../modules/widget-runtime";
 
 const QUERY_LABELS: Record<string, string> = {
   assigned_issues: "issues assigned to you",
@@ -94,9 +55,16 @@ export default function Home() {
   const [attachedUrl, setAttachedUrl] = useState<string | null>(null);
   const [attachedImage, setAttachedImage] = useState<ReferenceImage | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-  const params = useLocalSearchParams<{ widget?: string; refresh?: string; ts?: string }>();
+  const params = useLocalSearchParams<{ widget?: string; refresh?: string; lockSetup?: string; ts?: string }>();
+  const paramsRef = useRef(params);
   const handledRefreshRef = useRef<string | null>(null);
+  const handledLockScreenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    paramsRef.current = params;
+  }, [params]);
 
   // Android back closes the drawer before leaving the screen.
   useEffect(() => {
@@ -110,9 +78,14 @@ export default function Home() {
 
   // Placed widgets get fresh data whenever the app is opened or comes back to the foreground.
   useEffect(() => {
-    void refreshPlacedWidgets();
+    const hasPendingWidgetRefresh = paramsRef.current.refresh === "true" && Boolean(paramsRef.current.widget);
+    if (!hasPendingWidgetRefresh) void refreshPlacedWidgets();
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void refreshPlacedWidgets();
+      if (state !== "active") return;
+      const current = paramsRef.current;
+      const key = `${current.widget}:${current.ts}`;
+      const hasPendingRefresh = current.refresh === "true" && Boolean(current.widget) && handledRefreshRef.current !== key;
+      if (!hasPendingRefresh) void refreshPlacedWidgets();
     });
     return () => sub.remove();
   }, []);
@@ -122,8 +95,45 @@ export default function Home() {
     const key = `${params.widget}:${params.ts}`;
     if (handledRefreshRef.current === key) return;
     handledRefreshRef.current = key;
-    void refreshPlacedWidgets({ widgetId: params.widget, force: true });
+    setRefreshNotice("Refreshing widget…");
+    void refreshPlacedWidgets({ widgetId: params.widget, force: true }).then(({ updated, failures }) => {
+      setRefreshNotice(failures.length
+        ? `${updated ? `Updated ${updated} widget${updated === 1 ? "" : "s"}. ` : ""}${failures[0]}`
+        : updated
+          ? `Widget refreshed${updated > 1 ? ` (${updated} widgets)` : ""}.`
+          : "No placed widget was refreshed.");
+    });
   }, [params.refresh, params.ts, params.widget]);
+
+  useEffect(() => {
+    if (params.lockSetup !== "true" || !params.ts || handledLockScreenRef.current === params.ts) return;
+    handledLockScreenRef.current = params.ts;
+    const widgetRuntime = homeScreenWidgets;
+    if (!widgetRuntime) {
+      Alert.alert("Lock screen unavailable", "The Android widget runtime is not available in this app build.");
+      return;
+    }
+
+    Alert.alert(
+      "Enable the lock-screen shortcut?",
+      "Android requires you to approve WidgetComposer as a device administrator. This permission is used only to lock the screen when you tap the widget action; it cannot erase your data.",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => {
+            try {
+              if (!widgetRuntime.requestLockScreenAdmin()) {
+                Alert.alert("Setup unavailable", "Android could not open the device-admin approval screen.");
+              }
+            } catch (error) {
+              Alert.alert("Setup unavailable", error instanceof Error ? error.message : "Android could not open device-admin settings.");
+            }
+          },
+        },
+      ],
+    );
+  }, [params.lockSetup, params.ts]);
 
   // Bumped by "New chat" so a reply that lands after the thread was cleared is dropped.
   const threadRef = useRef(0);
@@ -160,6 +170,14 @@ export default function Home() {
 
     const { spec, generationRunId } = result.data;
     if (threadRef.current !== thread) return;
+    if (Platform.OS === "android" && Platform.Version >= 31 && hasBluetoothMetric(spec.root)) {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT, {
+        title: "Allow Bluetooth status",
+        message: "Widget Composer reads whether Bluetooth is on so your home-screen widget can show that status. It does not scan for or list nearby devices.",
+        buttonPositive: "Allow",
+        buttonNegative: "Not now",
+      });
+    }
     const saved = widgetId
       ? await saveWidgetVersion(widgetId, spec, generationRunId)
       : await saveWidget(spec, generationRunId);
@@ -184,6 +202,7 @@ export default function Home() {
             spec,
             widgetId: savedWidgetId,
             data: preview.ok ? preview.data.data : null,
+            ...(!preview.ok ? { dataError: preview.message } : {}),
             sample: preview.ok && preview.data.sample,
             generationRunId,
             ...(placed ? { placement: { kind: "updated" as const } } : {}),
@@ -193,6 +212,11 @@ export default function Home() {
           : m,
     ));
   };
+
+function hasBluetoothMetric(node: WidgetSpec["root"]): boolean {
+  if (node.type === "device_info") return node.metric === "bluetooth_status";
+  return (node.type === "column" || node.type === "row") && node.children.some(hasBluetoothMetric);
+}
 
   const addWidget = async (id: string) => {
     const message = messages.find((item) => item.id === id);
@@ -278,6 +302,11 @@ export default function Home() {
             />
           </Pressable>
         </View>
+        {refreshNotice && (
+          <Text style={styles.refreshNotice}>
+            {refreshNotice}
+          </Text>
+        )}
 
         <ScrollView
           ref={scrollRef}
@@ -310,6 +339,7 @@ export default function Home() {
                   text={m.text}
                   spec={m.spec}
                   data={m.data ?? null}
+                  dataError={m.dataError}
                   sample={m.sample ?? false}
                   designReview={m.designReview}
                   reviewing={m.reviewing ?? false}
@@ -389,6 +419,12 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  refreshNotice: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xs,
+    color: colors.textSubtle,
+    fontSize: 12,
   },
   title: {
     fontSize: 18,

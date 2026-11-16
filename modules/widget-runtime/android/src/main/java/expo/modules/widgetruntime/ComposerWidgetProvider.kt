@@ -28,6 +28,15 @@ class ComposerWidgetProvider : GlanceAppWidgetReceiver() {
       }
       return
     }
+    if (intent.action == ACTION_REFRESH) {
+      val widgetId = intent.getStringExtra(EXTRA_WIDGET_ID)
+      if (widgetId.isNullOrBlank()) {
+        Log.e(TAG, "Ignoring refresh request without a widget id.")
+      } else {
+        WidgetRefreshWorker.enqueue(context, widgetId)
+      }
+      return
+    }
     super.onReceive(context, intent)
   }
 
@@ -35,6 +44,7 @@ class ComposerWidgetProvider : GlanceAppWidgetReceiver() {
     val store = WidgetStore(context)
     appWidgetIds.forEach {
       Log.d(TAG, "instance $it removed")
+      store.recordRemoval(it)
       store.unbind(it)
     }
     super.onDeleted(context, appWidgetIds)
@@ -43,6 +53,7 @@ class ComposerWidgetProvider : GlanceAppWidgetReceiver() {
   companion object {
     internal const val TAG = "WidgetRuntime"
     internal const val ACTION_PINNED = "expo.modules.widgetruntime.PINNED"
+    internal const val ACTION_REFRESH = "expo.modules.widgetruntime.REFRESH"
     internal const val EXTRA_WIDGET_ID = "widgetId"
     internal val widget = ComposerGlanceWidget()
 
