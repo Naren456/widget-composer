@@ -23,6 +23,8 @@ WidgetComposer turns a natural-language description into a validated widget you 
 - Create and edit widgets through a chat-style interface.
 - Preview widget layouts and customize their appearance.
 - Connect widgets to supported live data such as GitHub, public websites, and RSS/Atom feeds.
+- Generate, edit, save, and reuse widget artwork in Image Studio.
+- Apply saved artwork as an Android widget background while keeping clocks and live data native.
 - Save widgets and versions to your WidgetComposer account.
 - Add widgets to the Android home screen and refresh their data.
 

@@ -215,8 +215,19 @@ export function SpecPreview({ spec, data, sample = false }: Props) {
   const palette = paletteFor(spec.presentation.theme, useColorScheme(), spec.presentation.palette);
   const family = spec.presentation.fontFamily ?? "sans";
   const hasGithubSource = spec.dataSources.some((source) => source.connector === "github");
+  const background = spec.presentation.backgroundImageAssetId
+    ? data?.[`asset_${spec.presentation.backgroundImageAssetId}`]?.items[0]
+    : undefined;
   return (
     <View style={[styles.card, { backgroundColor: palette.background, borderColor: palette.border }]}>
+      {background?.imageData && (
+        <Image
+          source={{ uri: `data:${background.imageMimeType ?? "image/jpeg"};base64,${background.imageData}` }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          accessibilityLabel="Widget background image"
+        />
+      )}
       <View style={styles.header}>
         <View style={[styles.accentMark, { backgroundColor: palette.accent }]} />
         <Text style={[styles.name, fontStyle(family), { color: palette.text }]} numberOfLines={1}>{spec.name}</Text>
@@ -234,6 +245,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 16,
     gap: 12,
+    overflow: "hidden",
+    position: "relative",
   },
   header: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
   accentMark: { width: 4, height: 16, borderRadius: 2 },

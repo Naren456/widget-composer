@@ -50,6 +50,15 @@ internal class WidgetRenderer(
   fun render(): RemoteViews {
     val root = RemoteViews(pkg, R.layout.widget_runtime_root)
     root.setInt(R.id.wr_root, "setBackgroundColor", palette.background)
+    val backgroundAssetId = presentation?.optString("backgroundImageAssetId")?.takeIf { it.isNotBlank() && it != "null" }
+    val backgroundItem = backgroundAssetId?.let { data?.optJSONObject("asset_$it")?.optJSONArray("items")?.optJSONObject(0) }
+    val backgroundBitmap = backgroundItem?.optString("imageData")?.takeIf { it.isNotBlank() }?.let(::decodeImage)
+    if (backgroundBitmap != null) {
+      root.setViewVisibility(R.id.wr_background, View.VISIBLE)
+      root.setImageViewBitmap(R.id.wr_background, backgroundBitmap)
+    } else {
+      root.setViewVisibility(R.id.wr_background, View.GONE)
+    }
     root.setViewVisibility(R.id.wr_empty, View.GONE)
     root.removeAllViews(R.id.wr_content)
     if (spec.optInt("schemaVersion") !in WidgetContract.SUPPORTED_SCHEMA_VERSIONS) {

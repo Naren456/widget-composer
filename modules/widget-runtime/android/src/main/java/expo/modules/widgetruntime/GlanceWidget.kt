@@ -75,7 +75,8 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
       presentation?.optString("fontFamily") ?: "sans",
       presentation?.optJSONObject("palette"),
     )
-    val images = if (spec != null) decodeImages(spec.optJSONObject("root"), data) else emptyMap()
+    val backgroundAssetId = presentation?.optString("backgroundImageAssetId")?.takeIf { it.isNotBlank() && it != "null" }
+    val images = if (spec != null) decodeImages(spec.optJSONObject("root"), data, backgroundAssetId) else emptyMap()
     val homeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("web2widgets://home?widget=${Uri.encode(widgetId.orEmpty())}"))
       .setPackage(context.packageName)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -96,6 +97,11 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
           .padding(outerPadding),
         contentAlignment = Alignment.TopStart,
       ) {
+        backgroundAssetId?.let { assetId ->
+          images["asset_$assetId"]?.let { bitmap ->
+            Image(ImageProvider(bitmap), null, GlanceModifier.fillMaxSize(), ContentScale.Crop)
+          }
+        }
         if (spec == null) {
           Text("Create a widget in WidgetComposer first", style = textStyle(palette.muted, 13, FontWeight.Normal, palette.fontFamily))
         } else if (unsupportedSchemaVersion) {
@@ -154,9 +160,10 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
     android.appwidget.AppWidgetManager.getInstance(context).updateAppWidget(appWidgetId, fallback)
   }
 
-  private fun decodeImages(root: JSONObject?, data: JSONObject?): Map<String, Bitmap> {
+  private fun decodeImages(root: JSONObject?, data: JSONObject?, backgroundAssetId: String? = null): Map<String, Bitmap> {
     val bindings = linkedSetOf<String>()
     collectImageBindings(root, bindings)
+    backgroundAssetId?.let { bindings.add("asset_$it") }
     return bindings.mapNotNull { binding ->
       val asset = ASSET_BINDING.matches(binding)
       val encoded = if (asset) {

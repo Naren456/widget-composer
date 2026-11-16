@@ -1,6 +1,6 @@
 /* Generated from the backend WidgetSpec Zod schema. Do not edit by hand. */
-export const WIDGET_CONTRACT_VERSION = 8 as const;
-export const WIDGET_CONTRACT_SHA256 = "8233ab33656e4a58801d5a5153ef9bced536ffc9fc251281f55f2927954392d0" as const;
+export const WIDGET_CONTRACT_VERSION = 9 as const;
+export const WIDGET_CONTRACT_SHA256 = "ef12550c8c52689fd311711e45683eb2b8089d71fad43b449e5356a33667baf9" as const;
 export type _Schema0 =
   | {
       type: "column" | "row";
@@ -113,7 +113,7 @@ export type _Schema0 =
  * Declarative, versioned WidgetComposer component tree.
  */
 export interface WidgetSpec {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   name: string;
   presentation: {
     theme: "light" | "dark" | "system";
@@ -127,6 +127,7 @@ export interface WidgetSpec {
       border: string;
     };
     refreshMinutes: number;
+    backgroundImageAssetId?: string;
     minWidthDp?: number;
     minHeightDp?: number;
   };

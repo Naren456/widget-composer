@@ -397,6 +397,7 @@ function hasBluetoothMetric(node: WidgetSpec["root"]): boolean {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onNewChat={newChat}
+        onOpenImageStudio={() => fromDrawer(() => router.push("/image-studio"))}
         onOpenProfile={() => fromDrawer(() => router.push("/profile"))}
       />
     </Screen>

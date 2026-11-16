@@ -9,6 +9,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  onOpenImageStudio: () => void;
   onOpenProfile: () => void;
 };
 
@@ -45,7 +46,7 @@ function Row({
 }
 
 /** Slide-in drawer in the ChatGPT pattern: new chat up top, account at the bottom. */
-export function Sidebar({ open, onClose, onNewChat, onOpenProfile }: Props) {
+export function Sidebar({ open, onClose, onNewChat, onOpenImageStudio, onOpenProfile }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const drawerWidth = Math.min(width * 0.82, 320);
@@ -85,6 +86,12 @@ export function Sidebar({ open, onClose, onNewChat, onOpenProfile }: Props) {
           icon={{ ios: "square.and.pencil", android: "edit_square", web: "edit_square" }}
           label="New chat"
           onPress={onNewChat}
+        />
+        <Row
+          icon={{ ios: "sparkles", android: "auto_awesome", web: "auto_awesome" }}
+          label="Image studio"
+          meta="Generate widget artwork"
+          onPress={onOpenImageStudio}
         />
 
         <View style={styles.spacer} />

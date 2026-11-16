@@ -172,6 +172,44 @@ export type WidgetDataSource = {
 export type WidgetDataMap = Record<string, WidgetDataSource>;
 
 export type WidgetReferenceImage = { mediaType: "image/jpeg" | "image/png" | "image/webp"; base64: string };
+export type ImageAsset = {
+  id: string;
+  prompt: string;
+  model: string;
+  style: string;
+  mediaType: string;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+  imageUrl: string;
+};
+export type ImageGenerationRequest = {
+  prompt: string;
+  style: "minimal" | "abstract" | "illustration" | "gradient" | "cyberpunk";
+  aspectRatio: "square" | "portrait" | "landscape";
+  referenceImage?: WidgetReferenceImage;
+};
+
+/** Generates and saves widget-ready artwork without exposing the provider key. */
+export function generateImageAsset(input: ImageGenerationRequest): Promise<ApiResult<{ asset: ImageAsset; imageUrl: string; imageData: string }>> {
+  return call("/v1/image-generation/generate", {
+    method: "POST",
+    body: input,
+    timeoutMs: GENERATE_TIMEOUT_MS,
+  });
+}
+
+export function listImageAssets(): Promise<ApiResult<{ assets: ImageAsset[] }>> {
+  return call("/v1/image-assets", { method: "GET" });
+}
+
+export function getImageAsset(assetId: string): Promise<ApiResult<{ asset: ImageAsset; imageData: string; imageUrl: string }>> {
+  return call(`/v1/image-assets/${encodeURIComponent(assetId)}`, { method: "GET" });
+}
+
+export function deleteImageAsset(assetId: string): Promise<ApiResult<void>> {
+  return call(`/v1/image-assets/${encodeURIComponent(assetId)}`, { method: "DELETE" });
+}
 
 export function generateWidget(prompt: string, widgetId?: string, image?: WidgetReferenceImage): Promise<ApiResult<{ spec: WidgetSpec; generationRunId: string }>> {
   return call("/v1/widgets/generate", {
@@ -205,7 +243,13 @@ export function getWidgetComponents(): Promise<ApiResult<{
   return call("/v1/widgets/components", { method: "GET" });
 }
 
-export type SavedWidget = { id: string; name: string; latestVersion: { spec: WidgetSpec } | null };
+export type SavedWidget = {
+  id: string;
+  name: string;
+  status: "draft" | "published" | "archived";
+  currentVersionId: string | null;
+  latestVersion: { id: string; versionNumber: number; spec: WidgetSpec } | null;
+};
 export type WidgetInstance = {
   id: string;
   deviceId: string;
@@ -246,6 +290,14 @@ export function saveWidgetVersion(widgetId: string, spec: WidgetSpec, generation
 
 export function getWidget(widgetId: string): Promise<ApiResult<SavedWidget>> {
   return call(`/v1/widgets/${widgetId}`, { method: "GET" });
+}
+
+export function listWidgets(): Promise<ApiResult<{ widgets: SavedWidget[] }>> {
+  return call("/v1/widgets", { method: "GET" });
+}
+
+export function publishWidgetVersion(widgetId: string, versionId: string): Promise<ApiResult<SavedWidget>> {
+  return call(`/v1/widgets/${encodeURIComponent(widgetId)}/publish`, { method: "POST", body: { versionId } });
 }
 
 /** Live data when an account is connected, otherwise sample data flagged `sample: true`. */
