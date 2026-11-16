@@ -10,10 +10,10 @@
 
 
 <p align="center">
-  <img src="shot-01-welcome.png" width="200"> <img src="shot-02-onboarding-widgets.png" width="200"> <img src="shot-03-onboarding-describe.png" width="200"> <img src="shot-04-onboarding-customize.png" width="200">
+  <img src="screenshots//shot-01-welcome.png" width="200"> <img src="screenshots/shot-02-onboarding-widgets.png" width="200"> <img src="screenshots/shot-03-onboarding-describe.png" width="200"> <img src="screenshots/shot-04-onboarding-customize.png" width="200">
 </p>
 <p align="center">
-  <img src="shot-05-onboarding-add.png" width="200"> <img src="shot-06-home-compose.png" width="200"> <img src="shot-07-profile.png" width="200"> <img src="shot-08-connections.png" width="200">
+  <img src="screenshots/shot-05-onboarding-add.png" width="200"> <img src="screenshots/shot-06-home-compose.png" width="200"> <img src="screenshots/shot-07-profile.png" width="200"> <img src="screenshots/shot-08-connections.png" width="200">
 </p>
 
 WidgetComposer turns a natural-language description into a validated widget you can preview and refine in the app. Widgets use a fixed declarative format rather than generated Android code.
