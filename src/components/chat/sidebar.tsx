@@ -87,12 +87,12 @@ export function Sidebar({ open, onClose, onNewChat, onOpenImageStudio, onOpenPro
           label="New chat"
           onPress={onNewChat}
         />
-        <Row
+        {/* <Row
           icon={{ ios: "sparkles", android: "auto_awesome", web: "auto_awesome" }}
           label="Image studio"
           meta="Generate widget artwork"
           onPress={onOpenImageStudio}
-        />
+        /> */}
 
         <View style={styles.spacer} />
 

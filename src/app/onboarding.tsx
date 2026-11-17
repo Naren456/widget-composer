@@ -7,8 +7,8 @@ import { OnboardingScreen } from "@/features/onboarding/onboarding-screen";
 export default function Onboarding() {
   const done = () => {
     markOnboardingSeen();
-    router.replace("/home");
     releaseOnboardingAssets();
+    router.replace("/home");
   };
 
   return <OnboardingScreen onDone={done} />;
