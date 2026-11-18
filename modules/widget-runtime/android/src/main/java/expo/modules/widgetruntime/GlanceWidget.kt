@@ -66,7 +66,8 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
     val payload = widgetId?.let(store::get)
     val spec = payload?.optJSONObject("spec")
     val schemaVersion = spec?.optInt("schemaVersion") ?: 0
-    val unsupportedSchemaVersion = schemaVersion !in WidgetContract.SUPPORTED_SCHEMA_VERSIONS
+    // Future schema versions may add fields or node types; known nodes remain renderable.
+    val invalidSchemaVersion = schemaVersion < 1
     val data = payload?.optJSONObject("data")
     val presentation = spec?.optJSONObject("presentation")
     val palette = WidgetPalette.from(
@@ -104,7 +105,7 @@ internal class ComposerGlanceWidget : GlanceAppWidget() {
         }
         if (spec == null) {
           Text("Create a widget in WidgetComposer first", style = textStyle(palette.muted, 13, FontWeight.Normal, palette.fontFamily))
-        } else if (unsupportedSchemaVersion) {
+        } else if (invalidSchemaVersion) {
           Text("Update WidgetComposer to view this widget", style = textStyle(palette.muted, 13, FontWeight.Normal, palette.fontFamily))
         } else {
           Column(modifier = GlanceModifier.fillMaxWidth()) {

@@ -23,7 +23,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Legacy fallback renderer for WidgetSpec v1-v4 when Glance composition fails.
+ * Legacy fallback renderer for WidgetSpec when Glance composition fails.
  *
  * Every node type maps to a fixed layout from this module, so a spec can only arrange
  * known views: it never carries code. External links must use HTTPS and come from
@@ -61,7 +61,7 @@ internal class WidgetRenderer(
     }
     root.setViewVisibility(R.id.wr_empty, View.GONE)
     root.removeAllViews(R.id.wr_content)
-    if (spec.optInt("schemaVersion") !in WidgetContract.SUPPORTED_SCHEMA_VERSIONS) {
+    if (spec.optInt("schemaVersion") < 1) {
       root.setViewVisibility(R.id.wr_empty, View.VISIBLE)
       root.setTextViewText(R.id.wr_empty, "Update WidgetComposer to view this widget.")
       root.setViewVisibility(R.id.wr_content, View.GONE)
