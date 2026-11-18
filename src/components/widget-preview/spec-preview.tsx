@@ -19,12 +19,35 @@ function fontStyle(font: WidgetFont | undefined) {
   return undefined;
 }
 
-function paletteFor(theme: WidgetSpec["presentation"]["theme"], system: "light" | "dark" | null, custom?: WidgetPalette): Palette {
+function paletteFor(theme: WidgetSpec["presentation"]["theme"], system: "light" | "dark" | null, custom?: WidgetPalette, themeVariant?: WidgetSpec["presentation"]["themeVariant"]): Palette {
   const dark = theme === "dark" || (theme === "system" && system !== "light");
-  return {
-    ...(dark
+  const isMui = themeVariant?.startsWith("mui");
+  const muiDark = themeVariant === "mui-dark";
+
+  const base = isMui
+    ? muiDark
+      ? {
+          background: "#121212",
+          surface: "#1E1E1E",
+          text: "#FFFFFF",
+          muted: "#B0B0B0",
+          accent: "#BB86FC",
+          border: "#424242",
+        }
+      : {
+          background: "#F5F5F5",
+          surface: "#FFFFFF",
+          text: "#212121",
+          muted: "#757575",
+          accent: "#6750A4",
+          border: "#B0B0B0",
+        }
+    : dark
       ? { background: "#141218", surface: "#211F26", text: "#E6E1E5", muted: "#CAC4D0", accent: "#D0BCFF", border: "#938F99" }
-      : { background: "#FEF7FF", surface: "#F7F2FA", text: "#1D1B20", muted: "#49454F", accent: "#6750A4", border: "#79747E" }),
+      : { background: "#FEF7FF", surface: "#F7F2FA", text: "#1D1B20", muted: "#49454F", accent: "#6750A4", border: "#79747E" };
+
+  return {
+    ...base,
     ...custom,
   };
 }
@@ -207,12 +230,43 @@ function NodePreview({ node, data, palette, family }: { node: WidgetNode; data: 
       );
     case "link":
       return <Text style={[styles.linkLabel, fontStyle(family), { color: palette.accent }]}>{node.label}</Text>;
+    case "toggle": {
+      const on = node.isOn ? palette.accent : palette.muted;
+      return (
+        <View style={styles.toggle}>
+          <Text style={[styles.toggleLabel, fontStyle(family), { color: on }]}>{template(node.label, data)}</Text>
+        </View>
+      );
+    }
+    case "slider": {
+      const value = Number(resolve(node.valueBinding, data) ?? node.minValue);
+      const ratio = Math.max(0, Math.min(1, (value - node.minValue) / (node.maxValue - node.minValue)));
+      return (
+        <View style={styles.sliderContainer}>
+          <Text style={[styles.sliderValue, fontStyle(family), { color: palette.text }]} numberOfLines={1}>
+            {node.label}: {String(Math.round(value))}
+          </Text>
+          <View style={[{ height: 12, backgroundColor: palette.surface, borderRadius: 6, overflow: "hidden" }]}>
+            <View style={{ width: `${ratio * 100}%`, height: "100%", backgroundColor: palette.accent }} />
+          </View>
+        </View>
+      );
+    }
+    case "chip": {
+      const isSelected = node.isSelected ? palette.accent : palette.muted;
+      return (
+        <View style={styles.chip}>
+
+          <Text style={[styles.chipLabel, fontStyle(family), { color: isSelected }]}>{template(node.label, data)}</Text>
+        </View>
+      );
+    }
   }
 }
 
 /** In-app preview of the same versioned WidgetSpec consumed by the Android Glance renderer. */
 export function SpecPreview({ spec, data, sample = false }: Props) {
-  const palette = paletteFor(spec.presentation.theme, useColorScheme(), spec.presentation.palette);
+  const palette = paletteFor(spec.presentation.theme, useColorScheme(), spec.presentation.palette, spec.presentation.themeVariant);
   const family = spec.presentation.fontFamily ?? "sans";
   const hasGithubSource = spec.dataSources.some((source) => source.connector === "github");
   const background = spec.presentation.backgroundImageAssetId
@@ -274,4 +328,26 @@ const styles = StyleSheet.create({
   buttonLabel: { fontSize: 14, fontWeight: "600" },
   linkLabel: { fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
   sample: { fontSize: 10, lineHeight: 14 },
+  toggle: {
+    padding: 8,
+    backgroundColor: "#211F26",
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  toggleLabel: { fontSize: 12, fontWeight: "500" },
+  sliderContainer: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sliderValue: { fontSize: 12, fontWeight: "500" },
+  sliderTrack: { height: 12, backgroundColor: "#211F26", borderRadius: 6, overflow: "hidden" },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#211F26",
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  chipLabel: { fontSize: 12, fontWeight: "500" },
 });
