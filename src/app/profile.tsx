@@ -28,9 +28,9 @@ export default function Profile() {
       icon: { ios: "person.fill", android: "person", web: "person" },
     },
     {
-      title: "Connected services",
-      body: "Connect your GitHub account",
-      icon: { ios: "link", android: "link", web: "link" },
+      title: "GitHub data",
+      body: "Public, read from your prompt",
+      icon: { ios: "chevron.left.forwardslash.chevron.right", android: "code", web: "code" },
       onPress: () => router.push("/connections"),
     },
     {

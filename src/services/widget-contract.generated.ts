@@ -1,6 +1,6 @@
 /* Generated from the backend WidgetSpec Zod schema. Do not edit by hand. */
-export const WIDGET_CONTRACT_VERSION = 9 as const;
-export const WIDGET_CONTRACT_SHA256 = "ef12550c8c52689fd311711e45683eb2b8089d71fad43b449e5356a33667baf9" as const;
+export const WIDGET_CONTRACT_VERSION = 10 as const;
+export const WIDGET_CONTRACT_SHA256 = "2509267e0d52936cb2b08494625ac08742b0846a64cbe1e7f4c031cc38e3c890" as const;
 export type _Schema0 =
   | {
       type: "column" | "row";
@@ -107,17 +107,38 @@ export type _Schema0 =
         | {
             type: "lock_screen";
           };
+    }
+  | {
+      type: "toggle";
+      label: string;
+      isOn: boolean;
+      valueBinding: string;
+    }
+  | {
+      type: "slider";
+      label: string;
+      minValue: number;
+      maxValue: number;
+      step?: number;
+      valueBinding: string;
+    }
+  | {
+      type: "chip";
+      label: string;
+      isSelected: boolean;
+      valueBinding: string;
     };
 
 /**
  * Declarative, versioned WidgetComposer component tree.
  */
 export interface WidgetSpec {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   name: string;
   presentation: {
     theme: "light" | "dark" | "system";
     fontFamily?: "sans" | "serif" | "monospace";
+    themeVariant?: "mui-light" | "mui-dark" | "light" | "dark";
     palette?: {
       background: string;
       surface: string;
@@ -139,6 +160,7 @@ export interface WidgetSpec {
         id: string;
         connector: "github";
         query: "assigned_issues" | "open_pull_requests" | "review_requests" | "contribution_streak";
+        user?: string;
       }
     | {
         id: string;
