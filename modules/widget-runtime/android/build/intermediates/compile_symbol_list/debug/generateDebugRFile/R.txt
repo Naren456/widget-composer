@@ -2,6 +2,7 @@ int drawable wr_bg_dark 0x0
 int drawable wr_bg_light 0x0
 int drawable wr_button_bg 0x0
 int drawable wr_refresh 0x0
+int id wr_background 0x0
 int id wr_button 0x0
 int id wr_clock_date 0x0
 int id wr_clock_time 0x0

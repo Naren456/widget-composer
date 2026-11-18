@@ -3,6 +3,7 @@ drawable wr_bg_dark
 drawable wr_bg_light
 drawable wr_button_bg
 drawable wr_refresh
+id wr_background
 id wr_button
 id wr_clock_date
 id wr_clock_time
