@@ -14,7 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /** Glance receiver for each launcher instance of the user's generated widget. */
-class ComposerWidgetProvider : GlanceAppWidgetReceiver() {
+open class ComposerWidgetProvider : GlanceAppWidgetReceiver() {
   override val glanceAppWidget: GlanceAppWidget = widget
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -59,11 +59,34 @@ class ComposerWidgetProvider : GlanceAppWidgetReceiver() {
 
     fun component(context: Context) = ComponentName(context, ComposerWidgetProvider::class.java)
 
-    fun placedIds(context: Context): IntArray = AppWidgetManager.getInstance(context).getAppWidgetIds(component(context))
+    fun components(context: Context): List<ComponentName> = listOf(
+      ComponentName(context, ComposerWidgetProvider::class.java),
+      ComponentName(context, ComposerWidgetProvider3x1::class.java),
+      ComponentName(context, ComposerWidgetProvider4x1::class.java),
+      ComponentName(context, ComposerWidgetProvider2x2::class.java),
+      ComponentName(context, ComposerWidgetProvider4x2::class.java)
+    )
+
+    fun placedIds(context: Context): IntArray {
+      val manager = AppWidgetManager.getInstance(context)
+      return components(context).flatMap { manager.getAppWidgetIds(it).toList() }.toIntArray()
+    }
 
     fun updateAll(context: Context) = GlanceWidgetUpdates.updateAll(context)
   }
 }
+
+/** 3×1 Standard widget size preset provider. */
+class ComposerWidgetProvider3x1 : ComposerWidgetProvider()
+
+/** 4×1 Wide banner widget size preset provider. */
+class ComposerWidgetProvider4x1 : ComposerWidgetProvider()
+
+/** 2×2 Square widget size preset provider. */
+class ComposerWidgetProvider2x2 : ComposerWidgetProvider()
+
+/** 4×2 Dashboard widget size preset provider. */
+class ComposerWidgetProvider4x2 : ComposerWidgetProvider()
 
 internal object GlanceWidgetUpdates {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_runtime_description">A widget you designed in WidgetComposer</string>
+    <string name="widget_runtime_empty">Create a widget in WidgetComposer, then add it here.</string>
+    <string name="widget_runtime_label">WidgetComposer (2×1 Compact)</string>
+    <string name="widget_runtime_label_2x2">WidgetComposer (2×2 Square)</string>
+    <string name="widget_runtime_label_3x1">WidgetComposer (3×1 Standard)</string>
+    <string name="widget_runtime_label_4x1">WidgetComposer (4×1 Wide Banner)</string>
+    <string name="widget_runtime_label_4x2">WidgetComposer (4×2 Dashboard)</string>
+    <string name="widget_runtime_lock_admin_description">Allows the Lock screen widget action to lock the device when you tap it. It cannot erase device data.</string>
+    <string name="widget_runtime_lock_admin_label">WidgetComposer screen lock</string>
+</resources>

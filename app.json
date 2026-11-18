@@ -43,7 +43,10 @@
           "image": "./assets/app-icon/splash-icon.png",
           "imageWidth": 220
         }
-      ]
+      ],
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

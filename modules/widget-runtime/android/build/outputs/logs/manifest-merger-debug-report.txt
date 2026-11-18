@@ -1,13 +1,13 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:1-32:12
-INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:1-32:12
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:1-76:12
+INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:1-76:12
 	package
 		INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml
 	xmlns:android
 		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:1:11-69
 application
-ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-31:17
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-75:17
 receiver#expo.modules.widgetruntime.LockScreenAdminReceiver
 ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:3:5-15:16
 	android:label
@@ -58,6 +58,38 @@ ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/s
 		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
 	android:name
 		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:28:9-50
+receiver#expo.modules.widgetruntime.ComposerWidgetProvider3x1
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:31:5-41:16
+	android:label
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:34:7-55
+	android:exported
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:33:7-30
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:32:7-74
+receiver#expo.modules.widgetruntime.ComposerWidgetProvider4x1
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:42:5-52:16
+	android:label
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:45:7-55
+	android:exported
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:44:7-30
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:43:7-74
+receiver#expo.modules.widgetruntime.ComposerWidgetProvider2x2
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:53:5-63:16
+	android:label
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:56:7-55
+	android:exported
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:55:7-30
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:54:7-74
+receiver#expo.modules.widgetruntime.ComposerWidgetProvider4x2
+ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:64:5-74:16
+	android:label
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:67:7-55
+	android:exported
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:66:7-30
+	android:name
+		ADDED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:65:7-74
 uses-sdk
 INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml

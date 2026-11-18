@@ -51,7 +51,15 @@ layout wr_text_title
 string widget_runtime_description
 string widget_runtime_empty
 string widget_runtime_label
+string widget_runtime_label_2x2
+string widget_runtime_label_3x1
+string widget_runtime_label_4x1
+string widget_runtime_label_4x2
 string widget_runtime_lock_admin_description
 string widget_runtime_lock_admin_label
 xml widget_runtime_device_admin
 xml widget_runtime_info
+xml widget_runtime_info_2x2
+xml widget_runtime_info_3x1
+xml widget_runtime_info_4x1
+xml widget_runtime_info_4x2

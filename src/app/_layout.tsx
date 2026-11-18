@@ -1,7 +1,11 @@
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 
 import { colors } from "@/theme/tokens";
+
+// Keep native splash screen visible until LoadingScreen assets are preloaded
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   return (

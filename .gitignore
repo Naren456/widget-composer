@@ -39,8 +39,6 @@ yarn-error.*
 example
 
 # generated native folders
-/ios
-/android
 
 # Local environment (see .env.example)
 .env

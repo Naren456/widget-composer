@@ -7,7 +7,7 @@
 5-->INJECTED
 6
 7    <application>
-7-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-31:17
+7-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:2:3-75:17
 8        <receiver
 8-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:3:5-15:16
 9            android:name="expo.modules.widgetruntime.LockScreenAdminReceiver"
@@ -63,6 +63,94 @@
 36                android:resource="@xml/widget_runtime_info" />
 36-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
 37        </receiver>
-38    </application>
-39
-40</manifest>
+38        <receiver
+38-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:31:5-41:16
+39            android:name="expo.modules.widgetruntime.ComposerWidgetProvider3x1"
+39-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:32:7-74
+40            android:exported="true"
+40-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:33:7-30
+41            android:label="@string/widget_runtime_label_3x1" >
+41-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:34:7-55
+42            <intent-filter>
+42-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:24:7-26:23
+43                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+43-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:9-76
+43-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:17-73
+44            </intent-filter>
+45
+46            <meta-data
+46-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:27:7-29:55
+47                android:name="android.appwidget.provider"
+47-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:28:9-50
+48                android:resource="@xml/widget_runtime_info_3x1" />
+48-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
+49        </receiver>
+50        <receiver
+50-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:42:5-52:16
+51            android:name="expo.modules.widgetruntime.ComposerWidgetProvider4x1"
+51-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:43:7-74
+52            android:exported="true"
+52-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:44:7-30
+53            android:label="@string/widget_runtime_label_4x1" >
+53-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:45:7-55
+54            <intent-filter>
+54-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:24:7-26:23
+55                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+55-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:9-76
+55-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:17-73
+56            </intent-filter>
+57
+58            <meta-data
+58-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:27:7-29:55
+59                android:name="android.appwidget.provider"
+59-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:28:9-50
+60                android:resource="@xml/widget_runtime_info_4x1" />
+60-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
+61        </receiver>
+62        <receiver
+62-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:53:5-63:16
+63            android:name="expo.modules.widgetruntime.ComposerWidgetProvider2x2"
+63-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:54:7-74
+64            android:exported="true"
+64-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:55:7-30
+65            android:label="@string/widget_runtime_label_2x2" >
+65-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:56:7-55
+66            <intent-filter>
+66-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:24:7-26:23
+67                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+67-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:9-76
+67-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:17-73
+68            </intent-filter>
+69
+70            <meta-data
+70-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:27:7-29:55
+71                android:name="android.appwidget.provider"
+71-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:28:9-50
+72                android:resource="@xml/widget_runtime_info_2x2" />
+72-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
+73        </receiver>
+74        <receiver
+74-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:64:5-74:16
+75            android:name="expo.modules.widgetruntime.ComposerWidgetProvider4x2"
+75-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:65:7-74
+76            android:exported="true"
+76-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:66:7-30
+77            android:label="@string/widget_runtime_label_4x2" >
+77-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:67:7-55
+78            <intent-filter>
+78-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:24:7-26:23
+79                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+79-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:9-76
+79-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:25:17-73
+80            </intent-filter>
+81
+82            <meta-data
+82-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:27:7-29:55
+83                android:name="android.appwidget.provider"
+83-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:28:9-50
+84                android:resource="@xml/widget_runtime_info_4x2" />
+84-->/home/narendra/Documents/web2widgets/modules/widget-runtime/android/src/main/AndroidManifest.xml:29:9-52
+85        </receiver>
+86    </application>
+87
+88</manifest>
